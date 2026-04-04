@@ -1,17 +1,14 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "optibuilding"
 version = "2.0.0"
-description = "Moteur de calcul énergétique des bâtiments — physique thermique + scénarios de rénovation"
+description = "Outil d'analyse et de rénovation énergétique des bâtiments"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26",
-    "pandas>=2.1",
-    "scipy>=1.11",
-    "shapely>=2.0",
+    "thermal-engine>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -19,4 +16,4 @@ dev = ["pytest>=7.4", "pytest-cov"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["optibuilding*", "optibuilding_physics*"]
+include = ["optibuilding*"]

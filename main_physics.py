@@ -14,7 +14,7 @@ import numpy as np
 from pathlib import Path
 
 # ─── Imports du moteur physique ───────────────────────────────────────────────
-from optibuilding_physics import (
+from thermal_engine import (
     load_building,
     parse_epw,
     compute_building_needs,
@@ -24,7 +24,7 @@ from optibuilding_physics import (
     build_renovation_report,
     save_report,
 )
-from optibuilding_physics.climate.epw_models import WeatherSeries, EPWLocation
+from thermal_engine.climate.epw_models import WeatherSeries, EPWLocation
 
 
 # ─────────────────────────────────────────────────────────────────────────────
