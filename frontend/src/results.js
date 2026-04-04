@@ -1,23 +1,49 @@
 /** Render analysis + renovation results into the sidebar. */
 
+import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
+import { simulateActions } from './api.js'
+
 const DPE_COLORS = {
   A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
   D: '#f1c40f', E: '#f39c12', F: '#e67e22', G: '#e74c3c',
 }
 
+// GeoJSON reference kept for on-the-fly action simulation
+let _currentGeojson = null
+
 /**
  * Show analysis + renovation results.
  * @param {object} analysis  response from POST /analysis
  * @param {object} renovation  response from POST /renovation
+ * @param {object} geojson  the building GeoJSON (needed for action simulation)
  */
-export function showResults(analysis, renovation) {
+export function showResults(analysis, renovation, geojson) {
+  _currentGeojson = geojson
+
   const panel = document.getElementById('results-panel')
   panel.classList.remove('hidden')
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   _renderDPE(analysis)
   _renderKPIs(analysis)
+  _renderActionsPanel()
   _renderRenovation(renovation)
+}
+
+function _renderActionsPanel() {
+  const mount = document.getElementById('actions-panel-mount')
+  if (!mount) return
+  mountActionsPanel(mount, async (enabledActions) => {
+    if (!_currentGeojson || !enabledActions.length) { hideCustomResult(); return }
+    try {
+      showCustomResultLoading()
+      const result = await simulateActions(_currentGeojson, enabledActions)
+      showCustomResult(result)
+    } catch (err) {
+      hideCustomResult()
+      console.error('Action simulation error:', err)
+    }
+  })
 }
 
 export function hideResults() {

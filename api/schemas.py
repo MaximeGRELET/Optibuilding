@@ -165,3 +165,17 @@ class RenovationResponse(BaseModel):
     building_id: str
     baseline: AnalysisResponse
     scenarios: list[dict[str, Any]]
+
+
+# ─── Custom action simulation ─────────────────────────────────────────────────
+
+class ActionParam(BaseModel):
+    """One enabled action with its parameters."""
+    action_id: str  # e.g. "insulate_walls", "replace_windows", …
+    params: dict[str, Any] = {}
+
+
+class SimulateActionsRequest(BaseModel):
+    building: GeoJSONFeatureCollection
+    method: Literal["monthly", "hourly"] = "monthly"
+    actions: list[ActionParam]  # only enabled actions are sent

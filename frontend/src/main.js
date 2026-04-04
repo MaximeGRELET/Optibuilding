@@ -48,10 +48,27 @@ document.getElementById('btn-delete').addEventListener('click', () => {
   updateAnalyseBtn()
 })
 
+// "Terminer le tracé" button — finalises the polygon being drawn
+document.getElementById('btn-finish').addEventListener('click', () => {
+  // Switching to simple_select triggers draw_polygon.stop() → finish()
+  draw.changeMode('simple_select')
+  setDrawingState(false)
+})
+
 function setMode(m) {
   document.getElementById('btn-draw').classList.toggle('active', m === 'draw')
   document.getElementById('btn-select').classList.toggle('active', m === 'select')
-  draw.changeMode(m === 'draw' ? 'draw_polygon' : 'simple_select')
+  if (m === 'draw') {
+    draw.changeMode('draw_polygon')
+    setDrawingState(true)
+  } else {
+    draw.changeMode('simple_select')
+    setDrawingState(false)
+  }
+}
+
+function setDrawingState(drawing) {
+  document.getElementById('toolbar-finish').classList.toggle('hidden', !drawing)
 }
 
 // ── Draw events ───────────────────────────────────────────────────────────
@@ -61,7 +78,14 @@ map.on('draw.create', ({ features }) => {
   renderZoneList()
   updateAnalyseBtn()
   selectZone(features[features.length - 1].id)
-  setMode('select')
+  // Defer mode switch so Draw's internal post-create handling runs first,
+  // then we lock the polygon out of direct_select (vertex editing).
+  setTimeout(() => {
+    draw.changeMode('simple_select', { featureIds: [] })
+    setDrawingState(false)
+    document.getElementById('btn-draw').classList.remove('active')
+    document.getElementById('btn-select').classList.add('active')
+  }, 0)
 })
 
 map.on('draw.delete', ({ features }) => {
@@ -76,6 +100,14 @@ map.on('draw.delete', ({ features }) => {
 
 map.on('draw.selectionchange', ({ features }) => {
   if (features.length > 0) selectZone(features[0].id)
+})
+
+// Prevent direct_select (vertex editing) on existing polygons.
+// Only draw_polygon mode may produce direct_select internally.
+map.on('draw.modechange', ({ mode }) => {
+  if (mode === 'direct_select') {
+    setTimeout(() => draw.changeMode('simple_select', { featureIds: [] }), 0)
+  }
 })
 
 // ── Zone list ─────────────────────────────────────────────────────────────
@@ -165,7 +197,7 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
       analyzeRenovation(geojson),
     ])
 
-    showResults(analysis, renovation)
+    showResults(analysis, renovation, geojson)
   } catch (err) {
     alert(`Erreur : ${err.message}`)
     console.error(err)

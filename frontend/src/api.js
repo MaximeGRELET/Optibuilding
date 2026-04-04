@@ -22,6 +22,26 @@ export async function analyzeBuilding(geojson, method = 'monthly') {
 }
 
 /**
+ * Simulate a custom set of enabled actions.
+ * @param {object} geojson
+ * @param {{ action_id: string, params: object }[]} actions  enabled actions only
+ * @param {'monthly'|'hourly'} method
+ * @returns {Promise<object>} RenovationResult.to_dict()
+ */
+export async function simulateActions(geojson, actions, method = 'monthly') {
+  const res = await fetch(`${BASE}/renovation/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ building: geojson, actions, method }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+/**
  * Run renovation scenario analysis.
  * @param {object} geojson
  * @param {'monthly'|'hourly'} method

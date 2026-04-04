@@ -38,6 +38,16 @@
           </button>
         </div>
 
+        <div id="toolbar-finish" class="hidden">
+          <button id="btn-finish" class="primary-btn full-width">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
+            Terminer le tracé
+          </button>
+          <p class="hint">Cliquez pour fermer et valider le polygone.</p>
+        </div>
+
         <div id="zones-panel">
           <h2>Zones <span id="zone-count" class="badge">0</span></h2>
           <ul id="zone-list"></ul>
@@ -112,8 +122,16 @@
 
           <div id="key-figures"></div>
 
+          <div id="actions-section">
+            <h3>
+              Actions de rénovation
+              <span class="section-hint">Activez et ajustez les actions, le résultat se met à jour automatiquement.</span>
+            </h3>
+            <div id="actions-panel-mount"></div>
+          </div>
+
           <div id="renovation-section">
-            <h3>Scénarios de rénovation</h3>
+            <h3>Scénarios pré-définis</h3>
             <div id="renovation-cards"></div>
           </div>
         </div>
