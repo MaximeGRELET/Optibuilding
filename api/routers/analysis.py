@@ -38,7 +38,11 @@ def run_analysis(req: AnalysisRequest) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur de simulation : {exc}") from exc
 
-    return result.to_dict()
+    d = result.to_dict()
+    # Attach exterior temperature series for hourly charts
+    if req.method == "hourly":
+        d["t_ext_hourly"] = [round(float(v), 1) for v in weather.dry_bulb_temp_c]
+    return d
 
 
 def _extract_location(geojson: dict) -> tuple[float, float]:

@@ -2,6 +2,7 @@
 
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
 import { simulateActions } from './api.js'
+import { renderHourlyCharts, hideCharts } from './charts.js'
 
 const DPE_COLORS = {
   A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
@@ -26,6 +27,11 @@ export function showResults(analysis, renovation, geojson) {
 
   _renderDPE(analysis)
   _renderKPIs(analysis)
+
+  // Hourly charts — only when method=hourly data is present
+  hideCharts()
+  if (analysis.t_ext_hourly) renderHourlyCharts(analysis)
+
   _renderActionsPanel()
   _renderRenovation(renovation)
 }

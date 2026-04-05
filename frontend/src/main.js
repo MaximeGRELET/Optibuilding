@@ -32,6 +32,16 @@ map.addControl(draw)
 // ── State ─────────────────────────────────────────────────────────────────
 
 let selectedId = null
+let simMethod = 'monthly'
+
+// ── Method toggle ─────────────────────────────────────────────────────────
+
+document.querySelectorAll('.method-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    simMethod = btn.dataset.method
+    document.querySelectorAll('.method-btn').forEach(b => b.classList.toggle('active', b === btn))
+  })
+})
 
 // ── Toolbar ───────────────────────────────────────────────────────────────
 
@@ -193,8 +203,8 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
     const geojson = buildGeoJSON(drawnFeatures)
 
     const [analysis, renovation] = await Promise.all([
-      analyzeBuilding(geojson),
-      analyzeRenovation(geojson),
+      analyzeBuilding(geojson, simMethod),
+      analyzeRenovation(geojson, simMethod),
     ])
 
     showResults(analysis, renovation, geojson)

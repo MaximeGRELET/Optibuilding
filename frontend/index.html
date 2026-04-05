@@ -98,6 +98,10 @@
         </div>
 
         <div id="analyse-panel">
+          <div id="method-toggle">
+            <button class="method-btn active" data-method="monthly">Mensuel</button>
+            <button class="method-btn" data-method="hourly">Horaire</button>
+          </div>
           <button id="btn-analyse" class="primary-btn full-width" disabled>
             Analyser le bâtiment
           </button>
@@ -121,6 +125,22 @@
           </div>
 
           <div id="key-figures"></div>
+
+          <div id="charts-section" class="hidden">
+            <h3>Simulation horaire</h3>
+            <div id="chart-comfort" class="chart-wrap">
+              <div class="chart-label">Température intérieure — semaine la plus froide</div>
+              <canvas id="canvas-coldweek"></canvas>
+            </div>
+            <div id="chart-load" class="chart-wrap">
+              <div class="chart-label">Puissance de chauffe annuelle</div>
+              <canvas id="canvas-load"></canvas>
+            </div>
+            <div id="chart-monthly" class="chart-wrap">
+              <div class="chart-label">Besoins mensuels (kWh)</div>
+              <canvas id="canvas-monthly"></canvas>
+            </div>
+          </div>
 
           <div id="actions-section">
             <h3>
