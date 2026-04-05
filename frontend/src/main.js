@@ -224,6 +224,8 @@ document.getElementById('btn-close-results').addEventListener('click', () => {
   setStep(1)
 })
 
+document.addEventListener('calibration:validated', () => setStep(3))
+
 function setStep(n) {
   ;[1, 2, 3].forEach(i => {
     const el = document.getElementById(`step-${['draw','calibrate','renovate'][i-1]}`)
