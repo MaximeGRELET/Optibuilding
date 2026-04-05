@@ -42,6 +42,28 @@ export async function simulateActions(geojson, actions, method = 'monthly') {
 }
 
 /**
+ * Run calibration simulation with parameter overrides + optional real consumption.
+ * @param {object} geojson
+ * @param {object} calibration  e.g. { "*": { u_walls: 1.5, ... } }
+ * @param {object|null} realConsumption  e.g. { annual_kwh: 12000 } or { monthly_kwh: [...] }
+ * @returns {Promise<object>} calibration result with monthly comparison
+ */
+export async function simulateCalibration(geojson, calibration = {}, realConsumption = null) {
+  const body = { building: geojson, calibration }
+  if (realConsumption) body.real_consumption = realConsumption
+  const res = await fetch(`${BASE}/calibration/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+/**
  * Run renovation scenario analysis.
  * @param {object} geojson
  * @param {'monthly'|'hourly'} method

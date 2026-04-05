@@ -207,6 +207,7 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
       analyzeRenovation(geojson, simMethod),
     ])
 
+    setStep(2)
     showResults(analysis, renovation, geojson)
   } catch (err) {
     alert(`Erreur : ${err.message}`)
@@ -218,7 +219,21 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
   }
 })
 
-document.getElementById('btn-close-results').addEventListener('click', hideResults)
+document.getElementById('btn-close-results').addEventListener('click', () => {
+  hideResults()
+  setStep(1)
+})
+
+document.addEventListener('calibration:validated', () => setStep(3))
+
+function setStep(n) {
+  ;[1, 2, 3].forEach(i => {
+    const el = document.getElementById(`step-${['draw','calibrate','renovate'][i-1]}`)
+    if (!el) return
+    el.classList.toggle('active', i === n)
+    el.classList.toggle('done', i < n)
+  })
+}
 
 // ── Draw styles ───────────────────────────────────────────────────────────
 

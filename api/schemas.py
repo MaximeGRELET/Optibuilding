@@ -179,3 +179,34 @@ class SimulateActionsRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
     actions: list[ActionParam]  # only enabled actions are sent
+
+
+# ─── Calibration ─────────────────────────────────────────────────────────────
+
+class CalibrationParamsSchema(BaseModel):
+    """Per-zone (or wildcard "*") fine-tuning overrides."""
+    u_walls: float | None = None
+    u_roof: float | None = None
+    u_floor: float | None = None
+    u_windows: float | None = None
+    wwr_override: float | None = None
+    infiltration_ach: float | None = None
+    ventilation_ach: float | None = None
+    t_heating: float | None = None
+    t_cooling: float | None = None
+    internal_gains_w_m2: float | None = None
+    altitude_m: float | None = None
+
+
+class RealConsumption(BaseModel):
+    """Optional real consumption data for comparison."""
+    monthly_kwh: list[float] | None = None   # 12 values (metered per month)
+    annual_kwh: float | None = None          # annual total to auto-distribute
+
+
+class CalibrateRequest(BaseModel):
+    building: GeoJSONFeatureCollection
+    method: Literal["monthly", "hourly"] = "monthly"
+    # Keys: zone_id or "*" (wildcard = all zones)
+    calibration: dict[str, CalibrationParamsSchema] = {}
+    real_consumption: RealConsumption | None = None

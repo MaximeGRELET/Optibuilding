@@ -16,6 +16,23 @@
           <p class="subtitle">Analyse énergétique des bâtiments</p>
         </div>
 
+        <div id="step-indicator">
+          <div class="step active" id="step-draw">
+            <span class="step-num">1</span>
+            <span class="step-label">Dessin</span>
+          </div>
+          <div class="step-arrow">›</div>
+          <div class="step" id="step-calibrate">
+            <span class="step-num">2</span>
+            <span class="step-label">Calibration</span>
+          </div>
+          <div class="step-arrow">›</div>
+          <div class="step" id="step-renovate">
+            <span class="step-num">3</span>
+            <span class="step-label">Rénovation</span>
+          </div>
+        </div>
+
         <div id="toolbar">
           <button id="btn-draw" class="tool-btn active" title="Dessiner une zone">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -140,6 +157,14 @@
               <div class="chart-label">Besoins mensuels (kWh)</div>
               <canvas id="canvas-monthly"></canvas>
             </div>
+          </div>
+
+          <div id="calibration-section">
+            <h3>
+              Calibration des paramètres
+              <span class="section-hint">Ajustez les paramètres pour coller aux consommations réelles.</span>
+            </h3>
+            <div id="calibration-panel-mount"></div>
           </div>
 
           <div id="actions-section">
