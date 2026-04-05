@@ -3,6 +3,7 @@
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
 import { simulateActions } from './api.js'
 import { renderHourlyCharts, hideCharts } from './charts.js'
+import { mountCalibrationPanel } from './calibration.js'
 
 const DPE_COLORS = {
   A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
@@ -32,8 +33,19 @@ export function showResults(analysis, renovation, geojson) {
   hideCharts()
   if (analysis.t_ext_hourly) renderHourlyCharts(analysis)
 
+  _renderCalibrationPanel(geojson)
   _renderActionsPanel()
   _renderRenovation(renovation)
+}
+
+function _renderCalibrationPanel(geojson) {
+  const mount = document.getElementById('calibration-panel-mount')
+  if (!mount) return
+  mountCalibrationPanel(mount, geojson, (result) => {
+    // Update DPE + KPIs when calibration result arrives
+    _renderDPE(result)
+    _renderKPIs(result)
+  })
 }
 
 function _renderActionsPanel() {
