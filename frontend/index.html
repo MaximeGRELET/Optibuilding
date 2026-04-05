@@ -9,175 +9,180 @@
   <body>
     <div id="app">
       <div id="map"></div>
-      <aside id="sidebar">
 
-        <div id="sidebar-header">
-          <h1>OptiBuilding</h1>
-          <p class="subtitle">Analyse énergétique des bâtiments</p>
+      <!-- ── Panneau gauche : logo + étapes + outils dessin ──────────── -->
+      <nav id="left-panel">
+        <div id="left-header">
+          <div class="app-logo">OB</div>
+          <div class="app-title">
+            <div class="app-name">OptiBuilding</div>
+            <div class="app-sub">Analyse énergétique</div>
+          </div>
         </div>
 
-        <div id="step-indicator">
-          <div class="step active" id="step-draw">
+        <div id="step-list">
+          <button class="step-btn active" data-step="1" id="step-btn-1">
             <span class="step-num">1</span>
-            <span class="step-label">Dessin</span>
-          </div>
-          <div class="step-arrow">›</div>
-          <div class="step" id="step-calibrate">
+            <div class="step-info">
+              <span class="step-name">Dessin</span>
+              <span class="step-desc">Zones & config</span>
+            </div>
+          </button>
+          <div class="step-connector"></div>
+          <button class="step-btn" data-step="2" id="step-btn-2" disabled>
             <span class="step-num">2</span>
-            <span class="step-label">Calibration</span>
-          </div>
-          <div class="step-arrow">›</div>
-          <div class="step" id="step-renovate">
+            <div class="step-info">
+              <span class="step-name">Calibration</span>
+              <span class="step-desc">Affinage physique</span>
+            </div>
+          </button>
+          <div class="step-connector"></div>
+          <button class="step-btn" data-step="3" id="step-btn-3" disabled>
             <span class="step-num">3</span>
-            <span class="step-label">Rénovation</span>
-          </div>
+            <div class="step-info">
+              <span class="step-name">Rénovation</span>
+              <span class="step-desc">Scénarios & actions</span>
+            </div>
+          </button>
         </div>
+
+        <div class="left-sep"></div>
 
         <div id="toolbar">
           <button id="btn-draw" class="tool-btn active" title="Dessiner une zone">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="3,21 12,3 21,21"/>
-            </svg>
-            Dessiner
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="3,21 12,3 21,21"/></svg>
+            <span>Dessiner</span>
           </button>
-          <button id="btn-select" class="tool-btn" title="Sélectionner une zone">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
-            </svg>
-            Sélectionner
+          <button id="btn-select" class="tool-btn" title="Sélectionner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+            <span>Sélect.</span>
           </button>
-          <button id="btn-delete" class="tool-btn danger" title="Supprimer la zone sélectionnée">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3,6 5,6 21,6"/>
-              <path d="M19,6l-1,14H6L5,6"/>
-            </svg>
-            Supprimer
+          <button id="btn-delete" class="tool-btn danger" title="Supprimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/></svg>
+            <span>Suppr.</span>
           </button>
         </div>
 
         <div id="toolbar-finish" class="hidden">
-          <button id="btn-finish" class="primary-btn full-width">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
-              <polyline points="20,6 9,17 4,12"/>
-            </svg>
+          <button id="btn-finish" class="finish-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20,6 9,17 4,12"/></svg>
             Terminer le tracé
           </button>
-          <p class="hint">Cliquez pour fermer et valider le polygone.</p>
         </div>
+      </nav>
 
-        <div id="zones-panel">
-          <h2>Zones <span id="zone-count" class="badge">0</span></h2>
-          <ul id="zone-list"></ul>
-          <p id="zones-empty" class="hint">Dessinez des polygones sur la carte pour définir les zones thermiques.</p>
-        </div>
+      <!-- ── Panneau droit : contenu par étape ───────────────────────── -->
+      <aside id="right-panel">
 
-        <div id="zone-form" class="hidden">
-          <h2>Zone — <span id="form-zone-label"></span></h2>
-          <div class="form-grid">
-            <label>Libellé</label>
-            <input type="text" id="f-label" placeholder="ex: RDC commercial" />
-
-            <label>Hauteur (m)</label>
-            <input type="number" id="f-height" value="3.0" min="1" max="50" step="0.5" />
-
-            <label>Année de construction</label>
-            <input type="number" id="f-year" value="1975" min="1900" max="2025" />
-
-            <label>Usage</label>
-            <select id="f-type">
-              <option value="residential">Résidentiel</option>
-              <option value="commercial">Commercial</option>
-              <option value="office">Bureaux</option>
-              <option value="mixed">Mixte</option>
-            </select>
-
-            <label>Plancher bas</label>
-            <select id="f-ground">
-              <option value="true">Sur terre-plein</option>
-              <option value="false">Vide sanitaire / étage</option>
-            </select>
-
-            <label>Toiture</label>
-            <select id="f-roof">
-              <option value="true">Zone avec toiture</option>
-              <option value="false">Plancher intermédiaire</option>
-            </select>
-
-            <label>Système de chauffage</label>
-            <select id="f-heating">
-              <option value="gas_boiler">Chaudière gaz</option>
-              <option value="heat_pump">Pompe à chaleur</option>
-              <option value="electric_direct">Électrique direct</option>
-              <option value="district_heating">Réseau de chaleur</option>
-            </select>
+        <!-- ─ Étape 1 : Zones & configuration ─ -->
+        <div id="panel-step1" class="step-panel">
+          <div class="panel-header">
+            <h2>Zones thermiques <span id="zone-count" class="badge">0</span></h2>
           </div>
-          <button id="btn-save-zone" class="primary-btn">Enregistrer</button>
+          <div class="panel-body">
+            <ul id="zone-list"></ul>
+            <p id="zones-empty" class="hint">Dessinez des polygones sur la carte pour définir les zones thermiques.</p>
+
+            <div id="zone-form" class="hidden">
+              <div class="section-title">Zone — <span id="form-zone-label"></span></div>
+              <div class="form-grid">
+                <label>Libellé</label>
+                <input type="text" id="f-label" placeholder="ex : RDC commercial" />
+                <label>Hauteur (m)</label>
+                <input type="number" id="f-height" value="3.0" min="1" max="50" step="0.5" />
+                <label>Année constr.</label>
+                <input type="number" id="f-year" value="1975" min="1900" max="2025" />
+                <label>Usage</label>
+                <select id="f-type">
+                  <option value="residential">Résidentiel</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="office">Bureaux</option>
+                  <option value="mixed">Mixte</option>
+                </select>
+                <label>Plancher bas</label>
+                <select id="f-ground">
+                  <option value="true">Sur terre-plein</option>
+                  <option value="false">Vide sanitaire / étage</option>
+                </select>
+                <label>Toiture</label>
+                <select id="f-roof">
+                  <option value="true">Zone avec toiture</option>
+                  <option value="false">Plancher intermédiaire</option>
+                </select>
+                <label>Chauffage</label>
+                <select id="f-heating">
+                  <option value="gas_boiler">Chaudière gaz</option>
+                  <option value="heat_pump">Pompe à chaleur</option>
+                  <option value="electric_direct">Électrique direct</option>
+                  <option value="district_heating">Réseau de chaleur</option>
+                </select>
+              </div>
+              <button id="btn-save-zone" class="primary-btn">Enregistrer</button>
+            </div>
+          </div>
+          <div class="panel-footer">
+            <div id="method-toggle">
+              <button class="method-btn active" data-method="monthly">Mensuel</button>
+              <button class="method-btn" data-method="hourly">Horaire</button>
+            </div>
+            <button id="btn-analyse" class="primary-btn full-width" disabled>
+              Analyser le bâtiment →
+            </button>
+            <p id="analyse-hint" class="hint">Définissez au moins une zone pour lancer l'analyse.</p>
+          </div>
         </div>
 
-        <div id="analyse-panel">
-          <div id="method-toggle">
-            <button class="method-btn active" data-method="monthly">Mensuel</button>
-            <button class="method-btn" data-method="hourly">Horaire</button>
+        <!-- ─ Étape 2 : Résultats + Calibration ─ -->
+        <div id="panel-step2" class="step-panel hidden">
+          <div class="panel-header">
+            <h2>Résultats & calibration</h2>
           </div>
-          <button id="btn-analyse" class="primary-btn full-width" disabled>
-            Analyser le bâtiment
-          </button>
-          <p id="analyse-hint" class="hint">Définissez au moins une zone pour lancer l'analyse.</p>
-        </div>
-
-        <div id="results-panel" class="hidden">
-          <div class="results-header">
-            <h2>Résultats</h2>
-            <button id="btn-close-results" class="icon-btn">✕</button>
-          </div>
-
-          <div id="dpe-section">
-            <div id="dpe-badge-wrap">
-              <div id="dpe-badge"></div>
-              <div id="dpe-info">
-                <div id="dpe-ep"></div>
-                <div id="dpe-co2"></div>
+          <div class="panel-body">
+            <div id="dpe-section">
+              <div id="dpe-badge-wrap">
+                <div id="dpe-badge"></div>
+                <div id="dpe-info">
+                  <div id="dpe-ep"></div>
+                  <div id="dpe-co2"></div>
+                </div>
               </div>
             </div>
-          </div>
+            <div id="key-figures"></div>
 
-          <div id="key-figures"></div>
+            <div id="charts-section" class="hidden">
+              <div class="section-title">Simulation horaire</div>
+              <div class="chart-wrap"><div class="chart-label">T° intérieure — semaine la plus froide</div><canvas id="canvas-coldweek"></canvas></div>
+              <div class="chart-wrap"><div class="chart-label">Puissance de chauffe annuelle</div><canvas id="canvas-load"></canvas></div>
+              <div class="chart-wrap"><div class="chart-label">Besoins mensuels (kWh)</div><canvas id="canvas-monthly"></canvas></div>
+            </div>
 
-          <div id="charts-section" class="hidden">
-            <h3>Simulation horaire</h3>
-            <div id="chart-comfort" class="chart-wrap">
-              <div class="chart-label">Température intérieure — semaine la plus froide</div>
-              <canvas id="canvas-coldweek"></canvas>
-            </div>
-            <div id="chart-load" class="chart-wrap">
-              <div class="chart-label">Puissance de chauffe annuelle</div>
-              <canvas id="canvas-load"></canvas>
-            </div>
-            <div id="chart-monthly" class="chart-wrap">
-              <div class="chart-label">Besoins mensuels (kWh)</div>
-              <canvas id="canvas-monthly"></canvas>
+            <div id="calibration-section">
+              <div class="section-title">
+                Calibration
+                <span class="section-hint">Cochez et ajustez pour correspondre aux consommations réelles.</span>
+              </div>
+              <div id="calibration-panel-mount"></div>
             </div>
           </div>
+        </div>
 
-          <div id="calibration-section">
-            <h3>
-              Calibration des paramètres
-              <span class="section-hint">Ajustez les paramètres pour coller aux consommations réelles.</span>
-            </h3>
-            <div id="calibration-panel-mount"></div>
+        <!-- ─ Étape 3 : Actions & Scénarios ─ -->
+        <div id="panel-step3" class="step-panel hidden">
+          <div class="panel-header">
+            <h2>Rénovation</h2>
           </div>
-
-          <div id="actions-section">
-            <h3>
-              Actions de rénovation
-              <span class="section-hint">Activez et ajustez les actions, le résultat se met à jour automatiquement.</span>
-            </h3>
-            <div id="actions-panel-mount"></div>
-          </div>
-
-          <div id="renovation-section">
-            <h3>Scénarios pré-définis</h3>
-            <div id="renovation-cards"></div>
+          <div class="panel-body">
+            <div id="actions-section">
+              <div class="section-title">
+                Actions à la carte
+                <span class="section-hint">Activez et combinez, résultat mis à jour automatiquement.</span>
+              </div>
+              <div id="actions-panel-mount"></div>
+            </div>
+            <div id="renovation-section">
+              <div class="section-title">Scénarios pré-définis</div>
+              <div id="renovation-cards"></div>
+            </div>
           </div>
         </div>
 

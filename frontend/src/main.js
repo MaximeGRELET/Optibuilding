@@ -6,35 +6,71 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw'
 
 import { addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps, buildGeoJSON } from './zones.js'
 import { analyzeBuilding, analyzeRenovation } from './api.js'
-import { showResults, hideResults } from './results.js'
+import { showResults } from './results.js'
 
-// ── Map init ──────────────────────────────────────────────────────────────
+// ── Map ────────────────────────────────────────────────────────────────────
 
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-  center: [4.854, 45.756],  // Lyon
+  center: [4.854, 45.756],
   zoom: 16,
 })
-
 map.addControl(new maplibregl.NavigationControl(), 'top-left')
 
-// ── Draw tool ─────────────────────────────────────────────────────────────
+// ── Draw ───────────────────────────────────────────────────────────────────
 
 const draw = new MapboxDraw({
   displayControlsDefault: false,
   defaultMode: 'draw_polygon',
   styles: drawStyles(),
 })
-
 map.addControl(draw)
 
-// ── State ─────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────
 
 let selectedId = null
 let simMethod = 'monthly'
+let maxReachedStep = 1  // highest step unlocked
 
-// ── Method toggle ─────────────────────────────────────────────────────────
+// ── Step navigation ────────────────────────────────────────────────────────
+
+function goToStep(n) {
+  if (n > maxReachedStep) return  // not yet unlocked
+
+  ;[1, 2, 3].forEach(i => {
+    const panel = document.getElementById(`panel-step${i}`)
+    const btn   = document.getElementById(`step-btn-${i}`)
+    if (panel) panel.classList.toggle('hidden', i !== n)
+    if (btn) {
+      btn.classList.toggle('active', i === n)
+      btn.classList.toggle('done', i < n && i <= maxReachedStep)
+    }
+  })
+}
+
+function unlockStep(n) {
+  maxReachedStep = Math.max(maxReachedStep, n)
+  // Enable step buttons up to maxReachedStep
+  ;[1, 2, 3].forEach(i => {
+    const btn = document.getElementById(`step-btn-${i}`)
+    if (btn) btn.disabled = i > maxReachedStep
+  })
+  goToStep(n)
+}
+
+// Step button click → navigate back (or forward if already unlocked)
+document.querySelectorAll('.step-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const n = parseInt(btn.dataset.step)
+    if (n <= maxReachedStep) goToStep(n)
+  })
+})
+
+// Event from calibration panel → go to step 3
+document.addEventListener('calibration:validated', () => unlockStep(3))
+
+// ── Method toggle ──────────────────────────────────────────────────────────
 
 document.querySelectorAll('.method-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -43,7 +79,7 @@ document.querySelectorAll('.method-btn').forEach(btn => {
   })
 })
 
-// ── Toolbar ───────────────────────────────────────────────────────────────
+// ── Toolbar ────────────────────────────────────────────────────────────────
 
 document.getElementById('btn-draw').addEventListener('click', () => setMode('draw'))
 document.getElementById('btn-select').addEventListener('click', () => setMode('select'))
@@ -58,9 +94,7 @@ document.getElementById('btn-delete').addEventListener('click', () => {
   updateAnalyseBtn()
 })
 
-// "Terminer le tracé" button — finalises the polygon being drawn
 document.getElementById('btn-finish').addEventListener('click', () => {
-  // Switching to simple_select triggers draw_polygon.stop() → finish()
   draw.changeMode('simple_select')
   setDrawingState(false)
 })
@@ -68,28 +102,21 @@ document.getElementById('btn-finish').addEventListener('click', () => {
 function setMode(m) {
   document.getElementById('btn-draw').classList.toggle('active', m === 'draw')
   document.getElementById('btn-select').classList.toggle('active', m === 'select')
-  if (m === 'draw') {
-    draw.changeMode('draw_polygon')
-    setDrawingState(true)
-  } else {
-    draw.changeMode('simple_select')
-    setDrawingState(false)
-  }
+  if (m === 'draw') { draw.changeMode('draw_polygon'); setDrawingState(true) }
+  else { draw.changeMode('simple_select'); setDrawingState(false) }
 }
 
 function setDrawingState(drawing) {
   document.getElementById('toolbar-finish').classList.toggle('hidden', !drawing)
 }
 
-// ── Draw events ───────────────────────────────────────────────────────────
+// ── Draw events ────────────────────────────────────────────────────────────
 
 map.on('draw.create', ({ features }) => {
   features.forEach(feat => addZone(feat))
   renderZoneList()
   updateAnalyseBtn()
   selectZone(features[features.length - 1].id)
-  // Defer mode switch so Draw's internal post-create handling runs first,
-  // then we lock the polygon out of direct_select (vertex editing).
   setTimeout(() => {
     draw.changeMode('simple_select', { featureIds: [] })
     setDrawingState(false)
@@ -112,21 +139,17 @@ map.on('draw.selectionchange', ({ features }) => {
   if (features.length > 0) selectZone(features[0].id)
 })
 
-// Prevent direct_select (vertex editing) on existing polygons.
-// Only draw_polygon mode may produce direct_select internally.
 map.on('draw.modechange', ({ mode }) => {
-  if (mode === 'direct_select') {
-    setTimeout(() => draw.changeMode('simple_select', { featureIds: [] }), 0)
-  }
+  if (mode === 'direct_select') setTimeout(() => draw.changeMode('simple_select', { featureIds: [] }), 0)
 })
 
-// ── Zone list ─────────────────────────────────────────────────────────────
+// ── Zone list ──────────────────────────────────────────────────────────────
 
 function renderZoneList() {
-  const list   = document.getElementById('zone-list')
-  const empty  = document.getElementById('zones-empty')
-  const count  = document.getElementById('zone-count')
-  const zones  = getAllZones()
+  const list  = document.getElementById('zone-list')
+  const empty = document.getElementById('zones-empty')
+  const count = document.getElementById('zone-count')
+  const zones = getAllZones()
 
   count.textContent = zones.length
   empty.classList.toggle('hidden', zones.length > 0)
@@ -147,7 +170,7 @@ function renderZoneList() {
   })
 }
 
-// ── Zone form ─────────────────────────────────────────────────────────────
+// ── Zone form ──────────────────────────────────────────────────────────────
 
 function selectZone(id) {
   selectedId = id
@@ -187,7 +210,7 @@ document.getElementById('btn-save-zone').addEventListener('click', () => {
   document.getElementById('form-zone-label').textContent = getZone(selectedId)?.label || ''
 })
 
-// ── Analyse ───────────────────────────────────────────────────────────────
+// ── Analyse ────────────────────────────────────────────────────────────────
 
 function updateAnalyseBtn() {
   document.getElementById('btn-analyse').disabled = !hasZones()
@@ -207,35 +230,19 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
       analyzeRenovation(geojson, simMethod),
     ])
 
-    setStep(2)
+    unlockStep(2)
     showResults(analysis, renovation, geojson)
   } catch (err) {
     alert(`Erreur : ${err.message}`)
     console.error(err)
   } finally {
     btn.disabled = false
-    btn.innerHTML = 'Analyser le bâtiment'
+    btn.innerHTML = 'Analyser le bâtiment →'
     updateAnalyseBtn()
   }
 })
 
-document.getElementById('btn-close-results').addEventListener('click', () => {
-  hideResults()
-  setStep(1)
-})
-
-document.addEventListener('calibration:validated', () => setStep(3))
-
-function setStep(n) {
-  ;[1, 2, 3].forEach(i => {
-    const el = document.getElementById(`step-${['draw','calibrate','renovate'][i-1]}`)
-    if (!el) return
-    el.classList.toggle('active', i === n)
-    el.classList.toggle('done', i < n)
-  })
-}
-
-// ── Draw styles ───────────────────────────────────────────────────────────
+// ── Draw styles ────────────────────────────────────────────────────────────
 
 function drawStyles() {
   return [
