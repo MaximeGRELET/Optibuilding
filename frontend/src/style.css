@@ -676,3 +676,8 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
   text-align: right;
   margin-top: 4px;
 }
+
+/* Calibration status line */
+#cal-status { min-height: 20px; }
+.cal-status-loading { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.cal-status-error { font-size: 11px; color: #e74c3c; }

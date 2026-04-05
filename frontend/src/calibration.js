@@ -50,7 +50,6 @@ let _chartInstance = null
 let _debounceTimer = null
 let _onResultCallback = null
 let _onValidateCallback = null
-let _container = null
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -62,7 +61,6 @@ let _container = null
  * @param {() => void} onValidate              — called when user clicks "Valider"
  */
 export function mountCalibrationPanel(container, geojson, onResult, onValidate) {
-  _container = container
   _geojson = geojson
   _onResultCallback = onResult
   _onValidateCallback = onValidate
@@ -101,10 +99,10 @@ function _buildHTML() {
             <span class="cal-val" data-key="${p.key}">${displayVal} ${p.unit}</span>
           </div>
           <input type="range" class="cal-slider" data-key="${p.key}"
-            min="${p.scale ? p.min / p.scale : p.min}"
-            max="${p.scale ? p.max / p.scale : p.max}"
-            step="${p.scale ? p.step / p.scale : p.step}"
-            value="${p.scale ? Math.round(_values[p.key] / p.scale) : _values[p.key]}"
+            min="${p.min}"
+            max="${p.max}"
+            step="${p.step}"
+            value="${_displayVal(p)}"
             ${isDisabled ? 'disabled' : ''}>
         </div>`
     }).join('')
@@ -146,6 +144,8 @@ function _buildHTML() {
       </div>
 
       ${sectionHTML}
+
+      <div id="cal-status"></div>
 
       <div id="cal-chart-wrap" class="cal-chart-wrap hidden">
         <div class="chart-label">Besoins chauffage simulés vs réels (kWh/mois)</div>
@@ -232,18 +232,28 @@ async function _runSimulate() {
 
   const realConsumption = _buildRealConsumption()
 
-  // Show spinner inside button
-  const btn = _container?.querySelector('#btn-validate-cal')
-  if (btn) btn.innerHTML = '<span class="loader"></span> Calcul…'
+  _setStatus('loading', 'Calcul en cours…')
 
   try {
     const result = await simulateCalibration(_geojson, calibration, realConsumption)
+    _setStatus('ok', '')
     _renderChart(result)
     if (_onResultCallback) _onResultCallback(result)
   } catch (err) {
     console.error('Calibration error:', err)
-  } finally {
-    if (btn) btn.textContent = 'Valider la calibration →'
+    _setStatus('error', `Erreur : ${err.message}`)
+  }
+}
+
+function _setStatus(type, msg) {
+  const el = document.getElementById('cal-status')
+  if (!el) return
+  if (type === 'loading') {
+    el.innerHTML = '<span class="cal-status-loading"><span class="loader"></span> Calcul en cours…</span>'
+  } else if (type === 'error') {
+    el.innerHTML = `<span class="cal-status-error">⚠ ${msg}</span>`
+  } else {
+    el.innerHTML = ''
   }
 }
 
