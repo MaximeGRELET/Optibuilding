@@ -4,6 +4,7 @@ import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCusto
 import { simulateActions } from './api.js'
 import { renderHourlyCharts, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
+import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
 
 const DPE_COLORS = {
   A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
@@ -44,9 +45,10 @@ export function showResults(analysis, renovation, geojson) {
   hideCharts()
   if (analysis.t_ext_hourly) renderHourlyCharts(analysis)
 
-  // Hide actions + renovation until calibration validated
+  // Hide actions + renovation + compare until calibration validated
   document.getElementById('actions-section')?.classList.add('hidden')
   document.getElementById('renovation-section')?.classList.add('hidden')
+  document.getElementById('compare-section')?.classList.add('hidden')
 
   _renderCalibrationPanel(geojson)
 }
@@ -60,8 +62,10 @@ function _renderCalibrationPanel(geojson) {
     () => {
       document.getElementById('actions-section')?.classList.remove('hidden')
       document.getElementById('renovation-section')?.classList.remove('hidden')
+      document.getElementById('compare-section')?.classList.remove('hidden')
       _renderActionsPanel()
       _renderRenovation(_pendingRenovation)
+      _renderComparePanel()
       document.getElementById('renovation-section')?.scrollIntoView({ behavior: 'smooth' })
       document.dispatchEvent(new CustomEvent('calibration:validated'))
     },
@@ -71,17 +75,34 @@ function _renderCalibrationPanel(geojson) {
 function _renderActionsPanel() {
   const mount = document.getElementById('actions-panel-mount')
   if (!mount) return
-  mountActionsPanel(mount, async (enabledActions) => {
-    if (!_currentGeojson || !enabledActions.length) { hideCustomResult(); return }
-    try {
-      showCustomResultLoading()
-      const result = await simulateActions(_currentGeojson, enabledActions)
-      showCustomResult(result)
-    } catch (err) {
-      hideCustomResult()
-      console.error('Action simulation error:', err)
-    }
-  })
+
+  const compareMount = document.getElementById('compare-panel-mount')
+
+  mountActionsPanel(
+    mount,
+    // onSimulate
+    async (enabledActions) => {
+      if (!_currentGeojson || !enabledActions.length) { hideCustomResult(); return }
+      try {
+        showCustomResultLoading()
+        const result = await simulateActions(_currentGeojson, enabledActions)
+        showCustomResult(result)
+      } catch (err) {
+        hideCustomResult()
+        console.error('Action simulation error:', err)
+      }
+    },
+    // onSave
+    (name, result, actions) => {
+      addSavedScenario(name, result, actions, compareMount)
+    },
+  )
+}
+
+function _renderComparePanel() {
+  const mount = document.getElementById('compare-panel-mount')
+  if (!mount) return
+  mountComparePanel(mount)
 }
 
 // ── DPE ───────────────────────────────────────────────────────────────────────
