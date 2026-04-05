@@ -8,7 +8,7 @@ from thermal_engine.io.geojson_loader import load_building
 from thermal_engine.simulation.needs import compute_building_needs
 
 from api.schemas import AnalysisRequest
-from api.dependencies import make_synthetic_weather
+from api.dependencies import get_weather
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -31,7 +31,7 @@ def run_analysis(req: AnalysisRequest) -> dict:
     # Extract location for synthetic weather (centroid of first zone)
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
 
     try:
         result = compute_building_needs(building, weather, method=req.method)

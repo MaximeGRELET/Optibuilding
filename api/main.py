@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import analysis, renovation, materials, calibration
+from api.routers import analysis, renovation, materials, calibration, weather
 
 app = FastAPI(
     title="OptiBuilding API",
@@ -29,6 +29,7 @@ app.include_router(analysis.router)
 app.include_router(renovation.router)
 app.include_router(materials.router)
 app.include_router(calibration.router)
+app.include_router(weather.router)
 
 
 @app.get("/health", tags=["system"])

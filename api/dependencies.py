@@ -1,4 +1,4 @@
-"""Shared dependencies — synthetic weather factory."""
+"""Shared dependencies — weather factory (EPW or synthetic fallback)."""
 
 from __future__ import annotations
 import numpy as np
@@ -61,3 +61,23 @@ def make_synthetic_weather(
         wind_direction_deg=np.full(8760, 180.0),
         timestamps=ts,
     )
+
+
+def get_weather(
+    lat: float,
+    lon: float,
+    city: str = "",
+    station_id: str | None = None,
+) -> WeatherSeries:
+    """
+    Retourne un WeatherSeries.
+    - Si station_id est fourni et connu → EPW réel (téléchargé + mis en cache)
+    - Sinon → météo synthétique basée sur la latitude
+    """
+    if station_id:
+        try:
+            from api.services.epw_cache import get_weather as _epw
+            return _epw(station_id)
+        except (ValueError, RuntimeError):
+            pass  # fallback sur synthétique si la station échoue
+    return make_synthetic_weather(lat, lon, city)

@@ -7,6 +7,7 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw'
 import { addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps, buildGeoJSON } from './zones.js'
 import { analyzeBuilding, analyzeRenovation } from './api.js'
 import { showResults } from './results.js'
+import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
 
 // ── Map ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,11 @@ const map = new maplibregl.Map({
   zoom: 16,
 })
 map.addControl(new maplibregl.NavigationControl(), 'top-left')
+
+// ── Weather picker ─────────────────────────────────────────────────────────
+
+const weatherMount = document.getElementById('weather-picker-mount')
+if (weatherMount) mountWeatherPicker(weatherMount)
 
 // ── Draw ───────────────────────────────────────────────────────────────────
 
@@ -225,9 +231,10 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
     const drawnFeatures = draw.getAll().features
     const geojson = buildGeoJSON(drawnFeatures)
 
+    const stationId = getSelectedStationId()
     const [analysis, renovation] = await Promise.all([
-      analyzeBuilding(geojson, simMethod),
-      analyzeRenovation(geojson, simMethod),
+      analyzeBuilding(geojson, simMethod, stationId),
+      analyzeRenovation(geojson, simMethod, stationId),
     ])
 
     unlockStep(2)

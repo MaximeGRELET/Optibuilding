@@ -12,7 +12,7 @@ from thermal_engine.io.geojson_loader import load_building
 from thermal_engine.simulation.needs import compute_building_needs, CalibrationParams
 
 from api.schemas import CalibrateRequest, CalibrationParamsSchema
-from api.dependencies import make_synthetic_weather
+from api.dependencies import get_weather
 from api.routers.analysis import _extract_location
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
@@ -61,7 +61,7 @@ def calibrate_simulate(req: CalibrateRequest) -> dict:
 
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
 
     # Build calibration dict for the engine
     engine_cal: dict[str, CalibrationParams] = {}

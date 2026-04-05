@@ -20,7 +20,7 @@ from thermal_engine.simulation.needs import compute_building_needs
 from thermal_engine.simulation.renovation import simulate_renovation
 
 from api.schemas import RenovationRequest, CustomScenario, SimulateActionsRequest
-from api.dependencies import make_synthetic_weather
+from api.dependencies import get_weather
 from api.routers.analysis import _extract_location
 
 router = APIRouter(prefix="/renovation", tags=["renovation"])
@@ -43,7 +43,7 @@ def run_renovation(req: RenovationRequest) -> dict:
 
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
 
     # Build scenarios list
     if req.use_standard_scenarios:
@@ -89,7 +89,7 @@ def simulate_actions(req: SimulateActionsRequest) -> dict:
 
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
 
     try:
         actions = [_action_from_param(a) for a in req.actions]
