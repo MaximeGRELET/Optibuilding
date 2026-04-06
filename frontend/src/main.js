@@ -238,7 +238,7 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
     ])
 
     unlockStep(2)
-    showResults(analysis, renovation, geojson)
+    showResults(analysis, renovation, geojson, stationId)
   } catch (err) {
     alert(`Erreur : ${err.message}`)
     console.error(err)

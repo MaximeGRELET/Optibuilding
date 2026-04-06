@@ -1,7 +1,7 @@
 /** Render analysis + renovation results into the right panel. */
 
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
-import { simulateActions } from './api.js'
+import { simulateActions, analyzeRenovation } from './api.js'
 import { renderHourlyCharts, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
 import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
@@ -33,10 +33,13 @@ const SCENARIO_SUBTITLES = {
 }
 
 let _currentGeojson = null
+let _currentStationId = null
+let _currentCalibration = {}  // { '*': { u_walls: ..., ... } } — set on validate
 let _pendingRenovation = null
 
-export function showResults(analysis, renovation, geojson) {
+export function showResults(analysis, renovation, geojson, stationId = null) {
   _currentGeojson = geojson
+  _currentStationId = stationId
   _pendingRenovation = renovation
 
   _renderDPE(analysis)
@@ -57,17 +60,30 @@ function _renderCalibrationPanel(geojson) {
   const mount = document.getElementById('calibration-panel-mount')
   if (!mount) return
   mountCalibrationPanel(
-    mount, geojson,
+    mount, geojson, _currentStationId,
     (result) => { _renderDPE(result); _renderKPIs(result) },
-    () => {
+    async (calibratedResult, calibration) => {
+      // Update DPE/KPIs with the exact calibrated result
+      if (calibratedResult) { _renderDPE(calibratedResult); _renderKPIs(calibratedResult) }
+      _currentCalibration = calibration || {}
+
       document.getElementById('actions-section')?.classList.remove('hidden')
       document.getElementById('renovation-section')?.classList.remove('hidden')
       document.getElementById('compare-section')?.classList.remove('hidden')
       _renderActionsPanel()
-      _renderRenovation(_pendingRenovation)
       _renderComparePanel()
-      document.getElementById('renovation-section')?.scrollIntoView({ behavior: 'smooth' })
       document.dispatchEvent(new CustomEvent('calibration:validated'))
+
+      // Re-run renovation with calibrated baseline
+      try {
+        const reno = await analyzeRenovation(_currentGeojson, 'monthly', _currentStationId, _currentCalibration)
+        _renderRenovation(reno)
+      } catch (err) {
+        console.error('Renovation (calibrated) error:', err)
+        _renderRenovation(_pendingRenovation)
+      }
+
+      document.getElementById('renovation-section')?.scrollIntoView({ behavior: 'smooth' })
     },
   )
 }
@@ -85,7 +101,7 @@ function _renderActionsPanel() {
       if (!_currentGeojson || !enabledActions.length) { hideCustomResult(); return }
       try {
         showCustomResultLoading()
-        const result = await simulateActions(_currentGeojson, enabledActions)
+        const result = await simulateActions(_currentGeojson, enabledActions, 'monthly', _currentStationId, _currentCalibration)
         showCustomResult(result)
       } catch (err) {
         hideCustomResult()

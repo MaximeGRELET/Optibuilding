@@ -41,6 +41,7 @@ const DEFAULTS = {
 // ── Module state ──────────────────────────────────────────────────────────────
 
 let _geojson = null
+let _stationId = null
 let _values = {}
 let _enabled = {}
 let _realMode = 'none'
@@ -50,6 +51,7 @@ let _chartInstance = null
 let _debounceTimer = null
 let _onResultCallback = null
 let _onValidateCallback = null
+let _lastResult = null   // dernier résultat simulé — référence exacte pour la rénovation
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -60,10 +62,12 @@ let _onValidateCallback = null
  * @param {(result: object) => void} onResult  — called after each simulation
  * @param {() => void} onValidate              — called when user clicks "Valider"
  */
-export function mountCalibrationPanel(container, geojson, onResult, onValidate) {
+export function mountCalibrationPanel(container, geojson, stationId, onResult, onValidate) {
   _geojson = geojson
+  _stationId = stationId
   _onResultCallback = onResult
   _onValidateCallback = onValidate
+  _lastResult = null
 
   PARAMS.forEach(p => {
     _enabled[p.key] = false
@@ -212,7 +216,12 @@ function _bindEvents(container) {
   // Validate button
   const btnValidate = container.querySelector('#btn-validate-cal')
   if (btnValidate) btnValidate.addEventListener('click', () => {
-    if (_onValidateCallback) _onValidateCallback()
+    if (_onValidateCallback) {
+      const overrides = {}
+      PARAMS.forEach(p => { if (_enabled[p.key]) overrides[p.key] = _values[p.key] })
+      const calibration = Object.keys(overrides).length ? { '*': overrides } : {}
+      _onValidateCallback(_lastResult, calibration)
+    }
   })
 }
 
@@ -235,7 +244,8 @@ async function _runSimulate() {
   _setStatus('loading', 'Calcul en cours…')
 
   try {
-    const result = await simulateCalibration(_geojson, calibration, realConsumption)
+    const result = await simulateCalibration(_geojson, calibration, realConsumption, _stationId)
+    _lastResult = result
     _setStatus('ok', '')
     _renderChart(result)
     if (_onResultCallback) _onResultCallback(result)

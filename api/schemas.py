@@ -139,6 +139,7 @@ class RenovationRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
     station_id: str | None = None
+    calibration: dict[str, "CalibrationParamsSchema"] = {}
     use_standard_scenarios: bool = True
     custom_scenarios: list[CustomScenario] = []
 
@@ -180,6 +181,8 @@ class SimulateActionsRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
     actions: list[ActionParam]  # only enabled actions are sent
+    station_id: str | None = None
+    calibration: dict[str, "CalibrationParamsSchema"] = {}
 
 
 # ─── Calibration ─────────────────────────────────────────────────────────────
