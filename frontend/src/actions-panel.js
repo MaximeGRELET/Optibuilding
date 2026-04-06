@@ -17,7 +17,9 @@ const state = new Map(
 )
 
 let _onSimulate = null
+let _onSave = null          // (name, result, actions) → void
 let _debounceTimer = null
+let _lastResult = null      // last simulation result — needed for save
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -25,9 +27,12 @@ let _debounceTimer = null
  * Mount the actions panel into `container`.
  * @param {HTMLElement} container
  * @param {(actions: object[]) => void} onSimulate  called with enabled actions list
+ * @param {(name: string, result: object, actions: object[]) => void} [onSave]
  */
-export function mountActionsPanel(container, onSimulate) {
+export function mountActionsPanel(container, onSimulate, onSave) {
   _onSimulate = onSimulate
+  _onSave = onSave ?? null
+  _lastResult = null
   container.innerHTML = renderPanel()
   _bindEvents(container)
 }
@@ -45,6 +50,7 @@ export function hasEnabledActions() {
 
 /** Show/hide the custom result in the panel. */
 export function showCustomResult(result) {
+  _lastResult = result
   const el = document.getElementById('custom-result')
   if (!el) return
   el.classList.remove('hidden')
@@ -94,6 +100,13 @@ export function showCustomResult(result) {
         <div class="crs-val">${roi} ans</div>
         <div class="crs-lbl">retour</div>
       </div>
+    </div>
+    <div class="save-scenario-row">
+      <input type="text" id="save-scenario-name" class="save-scenario-input" placeholder="Nom du scénario…" maxlength="40" />
+      <button id="btn-save-scenario" class="save-scenario-btn" title="Sauvegarder pour comparaison">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+        Sauvegarder
+      </button>
     </div>
   `
 }
@@ -233,12 +246,31 @@ function _bindEvents(container) {
   // Expand/collapse params
   container.addEventListener('click', e => {
     const btn = e.target.closest('.action-expand')
-    if (!btn) return
-    const s = state.get(btn.dataset.action)
-    s.open = !s.open
-    btn.classList.toggle('open', s.open)
-    const card = container.querySelector(`.action-card[data-action="${btn.dataset.action}"]`)
-    card?.querySelector('.action-params')?.classList.toggle('hidden', !s.open)
+    if (btn) {
+      const s = state.get(btn.dataset.action)
+      s.open = !s.open
+      btn.classList.toggle('open', s.open)
+      const card = container.querySelector(`.action-card[data-action="${btn.dataset.action}"]`)
+      card?.querySelector('.action-params')?.classList.toggle('hidden', !s.open)
+    }
+
+    // Save scenario
+    if (e.target.closest('#btn-save-scenario')) {
+      if (!_lastResult || !_onSave) return
+      const nameEl = document.getElementById('save-scenario-name')
+      const name = nameEl?.value.trim() || `Scénario ${Date.now()}`
+      _onSave(name, _lastResult, getEnabledActions())
+      if (nameEl) nameEl.value = ''
+      // Flash feedback
+      const saveBtn = document.getElementById('btn-save-scenario')
+      if (saveBtn) {
+        saveBtn.textContent = '✓ Sauvegardé'
+        setTimeout(() => {
+          if (saveBtn.textContent === '✓ Sauvegardé')
+            saveBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg> Sauvegarder`
+        }, 1500)
+      }
+    }
   })
 }
 

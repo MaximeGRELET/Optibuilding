@@ -16,12 +16,13 @@ from thermal_engine.simulation.renovation import (
     build_standard_scenarios,
 )
 
-from thermal_engine.simulation.needs import compute_building_needs
+from thermal_engine.simulation.needs import compute_building_needs, CalibrationParams
 from thermal_engine.simulation.renovation import simulate_renovation
 
 from api.schemas import RenovationRequest, CustomScenario, SimulateActionsRequest
-from api.dependencies import make_synthetic_weather
+from api.dependencies import get_weather
 from api.routers.analysis import _extract_location
+from api.routers.calibration import _to_engine_params
 
 router = APIRouter(prefix="/renovation", tags=["renovation"])
 
@@ -43,7 +44,12 @@ def run_renovation(req: RenovationRequest) -> dict:
 
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
+
+    # Build calibration dict for the engine
+    engine_cal: dict[str, CalibrationParams] = {
+        k: _to_engine_params(v) for k, v in req.calibration.items()
+    }
 
     # Build scenarios list
     if req.use_standard_scenarios:
@@ -57,8 +63,15 @@ def run_renovation(req: RenovationRequest) -> dict:
         scenarios = [_build_scenario(s) for s in req.custom_scenarios]
 
     try:
-        # simulate_multiple_scenarios computes baseline internally
-        results = simulate_multiple_scenarios(building, scenarios, weather, method=req.method)
+        # Compute calibrated baseline once, then simulate all scenarios against it
+        calibrated_baseline = compute_building_needs(
+            building, weather, method=req.method,
+            calibration=engine_cal if engine_cal else None,
+        )
+        results = [
+            simulate_renovation(building, scenario, weather, req.method, calibrated_baseline)
+            for scenario in scenarios
+        ]
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur de simulation : {exc}") from exc
 
@@ -89,7 +102,11 @@ def simulate_actions(req: SimulateActionsRequest) -> dict:
 
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
-    weather = make_synthetic_weather(lat, lon, city)
+    weather = get_weather(lat, lon, city, station_id=req.station_id)
+
+    engine_cal: dict[str, CalibrationParams] = {
+        k: _to_engine_params(v) for k, v in req.calibration.items()
+    }
 
     try:
         actions = [_action_from_param(a) for a in req.actions]
@@ -99,7 +116,10 @@ def simulate_actions(req: SimulateActionsRequest) -> dict:
             description="Actions sélectionnées manuellement",
             actions=actions,
         )
-        baseline = compute_building_needs(building, weather, method=req.method)
+        baseline = compute_building_needs(
+            building, weather, method=req.method,
+            calibration=engine_cal if engine_cal else None,
+        )
         result = simulate_renovation(building, scenario, weather, baseline=baseline)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur de simulation : {exc}") from exc

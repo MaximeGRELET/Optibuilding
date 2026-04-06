@@ -28,6 +28,7 @@ class GeoJSONFeatureCollection(BaseModel):
 class AnalysisRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
+    station_id: str | None = None   # si fourni, utilise le fichier EPW réel
 
 
 class EnvelopeBreakdown(BaseModel):
@@ -137,7 +138,8 @@ class CustomScenario(BaseModel):
 class RenovationRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
-    # Use either pre-built standard scenarios or define custom ones
+    station_id: str | None = None
+    calibration: dict[str, "CalibrationParamsSchema"] = {}
     use_standard_scenarios: bool = True
     custom_scenarios: list[CustomScenario] = []
 
@@ -179,6 +181,8 @@ class SimulateActionsRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
     actions: list[ActionParam]  # only enabled actions are sent
+    station_id: str | None = None
+    calibration: dict[str, "CalibrationParamsSchema"] = {}
 
 
 # ─── Calibration ─────────────────────────────────────────────────────────────
@@ -207,6 +211,6 @@ class RealConsumption(BaseModel):
 class CalibrateRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
-    # Keys: zone_id or "*" (wildcard = all zones)
+    station_id: str | None = None
     calibration: dict[str, CalibrationParamsSchema] = {}
     real_consumption: RealConsumption | None = None
