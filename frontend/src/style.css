@@ -466,12 +466,6 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 /* ── Renovation cards ─────────────────────────────────────────────────────── */
 #renovation-cards { display: flex; flex-direction: column; gap: 8px; }
 
-.reno-card {
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
 .reno-card-header {
   display: flex; align-items: flex-start;
   justify-content: space-between; gap: 8px;
@@ -701,7 +695,6 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .compare-table tbody tr:hover td { background: color-mix(in srgb, var(--bg-card) 60%, transparent); }
 .compare-highlight { font-weight: 700; color: var(--accent); }
 
-.compare-name-cell { max-width: 130px; }
 .compare-scenario-name { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compare-actions-pills { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 3px; }
 .compare-pill {
@@ -793,3 +786,347 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
   opacity: .6;
   text-align: right;
 }
+
+/* ── Wide panel (steps 2 & 3) ─────────────────────────────────────────────── */
+:root { --right-w-wide: 620px; }
+
+#right-panel.wide {
+  width: var(--right-w-wide);
+  min-width: var(--right-w-wide);
+  transition: width .25s ease, min-width .25s ease;
+}
+#right-panel {
+  transition: width .25s ease, min-width .25s ease;
+}
+
+/* ── Building selector ────────────────────────────────────────────────────── */
+#building-selector {
+  padding: 8px 8px 4px;
+  flex-shrink: 0;
+}
+.bsel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.bsel-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+}
+.bsel-add {
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.bsel-add:hover { border-color: var(--accent); color: var(--accent); }
+
+#building-chips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.building-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  transition: all .15s;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.building-chip:hover { background: var(--bg-input); color: var(--text); }
+.building-chip.active {
+  background: color-mix(in srgb, var(--bcolor, var(--accent)) 15%, transparent);
+  border-color: var(--bcolor, var(--accent));
+  color: var(--text);
+}
+.bchip-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bchip-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Zone form (rich) ─────────────────────────────────────────────────────── */
+#zone-form { display: flex; flex-direction: column; gap: 10px; }
+
+.zform-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.zform-title span { color: var(--accent); }
+
+.zfield { display: flex; flex-direction: column; gap: 5px; }
+.zfield-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.zfield-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.zinput {
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+}
+.zinput:focus { border-color: var(--accent); }
+.zinput-sm { margin-top: 4px; }
+
+/* Era chips */
+.era-chips {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+.era-chip {
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.era-chip:hover { border-color: var(--accent); color: var(--text); }
+.era-chip.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); font-weight: 700; }
+
+/* Usage cards */
+.usage-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.usage-card:hover { border-color: var(--accent); color: var(--text); }
+.usage-card.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.usage-card svg { opacity: .7; }
+.usage-card.active svg { opacity: 1; color: var(--accent); }
+
+/* Height stepper */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.stepper-btn {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.stepper-btn:hover { border-color: var(--accent); color: var(--accent); }
+.stepper-val {
+  width: 52px;
+  text-align: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+.stepper-val:focus { border-color: var(--accent); }
+.stepper-unit { font-size: 11px; color: var(--text-muted); }
+
+/* Position toggles */
+.toggle-pair {
+  display: flex;
+  gap: 12px;
+}
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+}
+.toggle-label input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+.toggle-label input:checked ~ .toggle-text { color: var(--text); }
+
+/* Infiltration chips */
+.infil-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
+}
+.infil-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+}
+.infil-chip:hover { border-color: var(--accent); color: var(--text); }
+.infil-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.infil-icon { font-size: 14px; }
+.infil-sub { font-size: 9px; color: var(--text-muted); }
+.infil-chip.active .infil-sub { color: color-mix(in srgb, var(--accent) 70%, transparent); }
+
+/* Heating cards */
+.heating-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.heating-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.heating-card:hover { border-color: var(--accent); color: var(--text); }
+.heating-card.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+.hcard-icon { font-size: 16px; }
+.hcard-label { font-size: 11px; font-weight: 600; line-height: 1.2; }
+.hcard-sub { font-size: 9px; color: var(--text-muted); }
+.heating-card.active .hcard-sub { color: color-mix(in srgb, var(--accent) 60%, transparent); }
+
+/* ── Renovation card (with color bar) ────────────────────────────────────── */
+.reno-card {
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+}
+.reno-color-bar {
+  width: 4px;
+  flex-shrink: 0;
+}
+.reno-card-body { flex: 1; min-width: 0; }
+
+/* Monthly chart in renovation section */
+#renovation-monthly-chart-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+#canvas-reno-monthly { max-height: 220px; }
+
+/* ── Compare panel charts ─────────────────────────────────────────────────── */
+.compare-chart-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.compare-monthly-wrap,
+.compare-efficiency-wrap {
+  position: relative;
+}
+.compare-monthly-wrap canvas,
+.compare-efficiency-wrap canvas {
+  width: 100% !important;
+}
+.compare-color-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.compare-name-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 160px;
+}
+

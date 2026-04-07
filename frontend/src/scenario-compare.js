@@ -1,23 +1,33 @@
 /**
- * Scenario comparison — table + efficiency chart.
- *
- * Stores saved scenarios in memory (session only).
- * Chart: kWh heating reduction per 1 000 € invested (efficiency metric).
+ * Scenario comparison — table + efficiency chart + monthly comparison chart.
  */
 
 import {
-  Chart, BarController, BarElement,
-  CategoryScale, LinearScale, Tooltip, Legend,
+  Chart, BarController, BarElement, LineController, LineElement,
+  CategoryScale, LinearScale, PointElement, Tooltip, Legend,
 } from 'chart.js'
 
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend)
+Chart.register(BarController, BarElement, LineController, LineElement,
+  CategoryScale, LinearScale, PointElement, Tooltip, Legend)
+
+const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+
+const SCENARIO_PALETTE = [
+  '#4f80ff', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4',
+]
+
+const DPE_COLORS = {
+  A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
+  D: '#f1c40f', E: '#f39c12', F: '#e67e22', G: '#e74c3c',
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-/** @type {{ id: number, name: string, result: object, actions: object[] }[]} */
+/** @type {{ id: number, name: string, result: object, actions: object[], baselineMonthly: number[]|null }[]} */
 const _scenarios = []
 let _nextId = 1
-let _chartInstance = null
+let _efficiencyChart = null
+let _monthlyChart    = null
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -26,14 +36,14 @@ export function mountComparePanel(container) {
 }
 
 /**
- * Add a saved scenario and re-render.
- * @param {string} name
- * @param {object} result  API result from /renovation/simulate
+ * @param {string}   name
+ * @param {object}   result
  * @param {object[]} actions
  * @param {HTMLElement} container
+ * @param {number[]|null} baselineMonthly  12-value reference heating array
  */
-export function addSavedScenario(name, result, actions, container) {
-  _scenarios.push({ id: _nextId++, name, result, actions })
+export function addSavedScenario(name, result, actions, container, baselineMonthly = null) {
+  _scenarios.push({ id: _nextId++, name, result, actions, baselineMonthly })
   _render(container)
   container.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -54,7 +64,7 @@ function _render(container) {
 
   container.innerHTML = `
     <div class="compare-toolbar">
-      <span class="compare-count">${_scenarios.length} scénario${_scenarios.length > 1 ? 's' : ''} comparé${_scenarios.length > 1 ? 's' : ''}</span>
+      <span class="compare-count">${_scenarios.length} scénario${_scenarios.length > 1 ? 's' : ''}</span>
       <button id="btn-clear-scenarios" class="compare-clear-btn">Tout effacer</button>
     </div>
 
@@ -62,60 +72,71 @@ function _render(container) {
       ${_buildTable()}
     </div>
 
-    <div class="compare-chart-wrap">
-      <div class="section-title" style="margin-bottom:6px">
+    <div class="compare-chart-section">
+      <div class="section-title" style="margin-bottom:8px">
+        Consommation mensuelle comparée
+        <span class="section-hint">Chauffage (kWh) mois par mois — référence vs chaque scénario</span>
+      </div>
+      <div class="compare-monthly-wrap">
+        <canvas id="canvas-compare-monthly"></canvas>
+      </div>
+    </div>
+
+    <div class="compare-chart-section">
+      <div class="section-title" style="margin-bottom:8px">
         Efficacité économique
         <span class="section-hint">Réduction de chauffage (kWh/an) par tranche de 1 000 € investis</span>
       </div>
-      <canvas id="canvas-compare" style="max-height:200px"></canvas>
+      <div class="compare-efficiency-wrap">
+        <canvas id="canvas-compare"></canvas>
+      </div>
     </div>
   `
 
   container.querySelector('#btn-clear-scenarios')?.addEventListener('click', () => {
     _scenarios.length = 0
     _nextId = 1
-    if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null }
+    _destroyCharts()
     _render(container)
   })
 
-  // Delete buttons
   container.querySelectorAll('.compare-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = parseInt(btn.dataset.id)
       const idx = _scenarios.findIndex(s => s.id === id)
       if (idx !== -1) _scenarios.splice(idx, 1)
-      if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null }
+      _destroyCharts()
       _render(container)
     })
   })
 
-  _renderChart()
+  _renderMonthlyChart()
+  _renderEfficiencyChart()
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 
-const DPE_COLORS = {
-  A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
-  D: '#f1c40f', E: '#f39c12', F: '#e67e22', G: '#e74c3c',
-}
-
 function _buildTable() {
-  const rows = _scenarios.map(s => {
-    const r = s.result
-    const before  = r.baseline_dpe || '?'
-    const after   = r.after_dpe    || '?'
-    const ep      = _fmt(r.after_full?.primary_energy_kwh_m2, 0)
-    const reduc   = r.heating_need_reduction_pct != null ? `−${_fmt(r.heating_need_reduction_pct, 0)} %` : '—'
-    const savings = _fmt(r.cost_savings_eur_per_year, 0)
-    const invest  = _fmt(r.investment_center_eur ?? r.investment_max_eur, 0)
-    const roi     = r.simple_payback_years > 99 ? '>99' : _fmt(r.simple_payback_years, 0)
-    const effic   = _efficiency(r)
+  const rows = _scenarios.map((s, idx) => {
+    const r      = s.result
+    const color  = SCENARIO_PALETTE[idx % SCENARIO_PALETTE.length]
+    const before = r.baseline_dpe || '?'
+    const after  = r.after_dpe    || '?'
+    const ep     = _fmt(r.after_full?.primary_energy_kwh_m2, 0)
+    const reduc  = r.heating_need_reduction_pct != null ? `−${_fmt(r.heating_need_reduction_pct, 0)} %` : '—'
+    const savings= _fmt(r.cost_savings_eur_per_year, 0)
+    const invest = _fmt(r.investment_center_eur ?? r.investment_max_eur, 0)
+    const roi    = r.simple_payback_years > 99 ? '>99' : _fmt(r.simple_payback_years, 0)
+    const effic  = _efficiency(r)
 
     return `
       <tr>
         <td class="compare-name-cell">
-          <span class="compare-scenario-name">${_escHtml(s.name)}</span>
-          <span class="compare-actions-pills">${s.actions.map(a => `<span class="compare-pill">${a.action_id.replace('_', '\u00A0')}</span>`).join('')}</span>
+          <span class="compare-color-dot" style="background:${color}"></span>
+          <div>
+            <span class="compare-scenario-name">${_escHtml(s.name)}</span>
+            <span class="compare-actions-pills">${s.actions.map(a => `<span class="compare-pill">${a.action_id.replace('_', '\u00A0')}</span>`).join('')}</span>
+          </div>
         </td>
         <td>
           <span class="dpe-chip" style="background:${DPE_COLORS[before]||'#888'}">${before}</span>
@@ -151,18 +172,106 @@ function _buildTable() {
     </table>`
 }
 
-// ── Chart ─────────────────────────────────────────────────────────────────────
+// ── Monthly comparison chart ──────────────────────────────────────────────────
 
-function _renderChart() {
-  if (_chartInstance) { _chartInstance.destroy(); _chartInstance = null }
+function _renderMonthlyChart() {
+  if (_monthlyChart) { _monthlyChart.destroy(); _monthlyChart = null }
+  const ctx = document.getElementById('canvas-compare-monthly')
+  if (!ctx) return
+
+  const datasets = []
+
+  // Baseline from first scenario that has one
+  const baselineMonthly = _scenarios.find(s => s.baselineMonthly)?.baselineMonthly
+  if (baselineMonthly) {
+    datasets.push({
+      label: 'Référence',
+      data: baselineMonthly,
+      borderColor: '#7a7f9a',
+      backgroundColor: 'rgba(122,127,154,0.06)',
+      borderWidth: 2.5,
+      borderDash: [6, 3],
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: 99,
+    })
+  }
+
+  _scenarios.forEach((s, i) => {
+    const monthly = _extractAfterMonthly(s.result)
+    if (!monthly) return
+    const color = SCENARIO_PALETTE[i % SCENARIO_PALETTE.length]
+    datasets.push({
+      label: s.name,
+      data: monthly,
+      borderColor: color,
+      backgroundColor: color + '18',
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: i,
+    })
+  })
+
+  if (datasets.length < 1) {
+    document.querySelector('.compare-monthly-wrap')?.classList.add('hidden')
+    return
+  }
+
+  _monthlyChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels: MONTHS, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#e8eaf2', font: { size: 10 }, boxWidth: 20, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${(ctx.parsed.y ?? 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} kWh`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: '#2d3147' },
+          ticks: { color: '#7a7f9a', font: { size: 10 } },
+        },
+        y: {
+          grid: { color: '#2d3147' },
+          ticks: {
+            color: '#7a7f9a', font: { size: 10 },
+            callback: v => `${v.toLocaleString('fr-FR')} kWh`,
+          },
+          beginAtZero: true,
+        },
+      },
+    },
+  })
+
+  const wrap = document.querySelector('.compare-monthly-wrap')
+  if (wrap) wrap.style.height = '220px'
+}
+
+// ── Efficiency chart ──────────────────────────────────────────────────────────
+
+function _renderEfficiencyChart() {
+  if (_efficiencyChart) { _efficiencyChart.destroy(); _efficiencyChart = null }
   const ctx = document.getElementById('canvas-compare')
   if (!ctx) return
 
-  const labels  = _scenarios.map(s => s.name)
-  const values  = _scenarios.map(s => _efficiencyRaw(s.result))
-  const colors  = values.map(v => v > 0 ? 'rgba(79,128,255,0.75)' : 'rgba(120,120,120,0.4)')
+  const labels = _scenarios.map(s => s.name)
+  const values = _scenarios.map(s => _efficiencyRaw(s.result))
+  const colors = _scenarios.map((_, i) => SCENARIO_PALETTE[i % SCENARIO_PALETTE.length] + 'BB')
 
-  _chartInstance = new Chart(ctx.getContext('2d'), {
+  _efficiencyChart = new Chart(ctx.getContext('2d'), {
     type: 'bar',
     data: {
       labels,
@@ -181,9 +290,7 @@ function _renderChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.parsed.x.toFixed(0)} kWh / k€`,
-          },
+          callbacks: { label: ctx => ` ${ctx.parsed.x.toFixed(0)} kWh / k€` },
         },
       },
       scales: {
@@ -200,22 +307,44 @@ function _renderChart() {
     },
   })
 
-  // Dynamic height: 40px per bar + margins
-  ctx.parentElement.style.height = `${Math.max(120, _scenarios.length * 44 + 40)}px`
+  const wrap = document.querySelector('.compare-efficiency-wrap')
+  if (wrap) wrap.style.height = `${Math.max(100, _scenarios.length * 44 + 40)}px`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function _extractAfterMonthly(r) {
+  const full = r.after_full || r.after
+  if (!full) return null
+  if (full.zone_results?.length) {
+    const arr = new Array(12).fill(0)
+    full.zone_results.forEach(z => {
+      if (z.heating_need_monthly?.length === 12)
+        z.heating_need_monthly.forEach((v, i) => { arr[i] += v || 0 })
+    })
+    if (arr.some(v => v > 0)) return arr
+  }
+  if (full.heating_need_monthly?.length === 12) return full.heating_need_monthly
+  return null
+}
+
 function _efficiencyRaw(r) {
-  const invest = r.investment_center_eur ?? r.investment_max_eur
-  const savedKwh = (r.baseline_full?.heating_need_kwh ?? 0) - (r.after_full?.heating_need_kwh ?? 0)
+  const invest   = r.investment_center_eur ?? r.investment_max_eur
+  const baseline = r.baseline_full?.heating_need_kwh ?? 0
+  const after    = r.after_full?.heating_need_kwh    ?? 0
+  const saved    = baseline - after
   if (!invest || invest <= 0) return 0
-  return Math.round((savedKwh / invest) * 1000)
+  return Math.round((saved / invest) * 1000)
 }
 
 function _efficiency(r) {
   const v = _efficiencyRaw(r)
   return v > 0 ? `${v.toLocaleString('fr-FR')} kWh/k€` : '—'
+}
+
+function _destroyCharts() {
+  if (_efficiencyChart) { _efficiencyChart.destroy(); _efficiencyChart = null }
+  if (_monthlyChart)    { _monthlyChart.destroy();    _monthlyChart    = null }
 }
 
 function _fmt(val, dec) {
@@ -224,5 +353,5 @@ function _fmt(val, dec) {
 }
 
 function _escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

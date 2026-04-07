@@ -4,12 +4,18 @@ import './style.css'
 import maplibregl from 'maplibre-gl'
 import MapboxDraw from '@mapbox/mapbox-gl-draw'
 
-import { addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps, buildGeoJSON } from './zones.js'
+import {
+  createBuilding, setActiveBuilding, getActiveBuilding,
+  getAllBuildings,
+  addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps,
+  buildGeoJSON, getInactiveBuildingsGeoJSON, setMaxStep, getMaxStep,
+  setAnalysis, setRenovation,
+} from './buildings.js'
 import { analyzeBuilding, analyzeRenovation } from './api.js'
 import { showResults } from './results.js'
 import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
 
-// ── Map ────────────────────────────────────────────────────────────────────
+// ── Map ────────────────────────────────────────────────────────────────────────
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -19,30 +25,34 @@ const map = new maplibregl.Map({
 })
 map.addControl(new maplibregl.NavigationControl(), 'top-left')
 
-// ── Weather picker ─────────────────────────────────────────────────────────
+// ── Weather picker ─────────────────────────────────────────────────────────────
 
 const weatherMount = document.getElementById('weather-picker-mount')
 if (weatherMount) mountWeatherPicker(weatherMount)
 
-// ── Draw ───────────────────────────────────────────────────────────────────
+// ── Draw ───────────────────────────────────────────────────────────────────────
 
 const draw = new MapboxDraw({
   displayControlsDefault: false,
   defaultMode: 'draw_polygon',
-  styles: drawStyles(),
+  styles: _drawStyles(),
 })
 map.addControl(draw)
 
-// ── State ──────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────────
 
 let selectedId = null
 let simMethod = 'monthly'
-let maxReachedStep = 1  // highest step unlocked
 
-// ── Step navigation ────────────────────────────────────────────────────────
+// Initialize with one default building
+createBuilding('Bâtiment 1')
+renderBuildingSelector()
 
-function goToStep(n) {
-  if (n > maxReachedStep) return  // not yet unlocked
+// ── Step navigation ────────────────────────────────────────────────────────────
+
+export function goToStep(n) {
+  const max = getMaxStep()
+  if (n > max) return
 
   ;[1, 2, 3].forEach(i => {
     const panel = document.getElementById(`panel-step${i}`)
@@ -50,33 +60,35 @@ function goToStep(n) {
     if (panel) panel.classList.toggle('hidden', i !== n)
     if (btn) {
       btn.classList.toggle('active', i === n)
-      btn.classList.toggle('done', i < n && i <= maxReachedStep)
+      btn.classList.toggle('done', i < n && i <= max)
     }
   })
+
+  // Widen right panel for steps 2 and 3
+  const rightPanel = document.getElementById('right-panel')
+  rightPanel?.classList.toggle('wide', n > 1)
 }
 
-function unlockStep(n) {
-  maxReachedStep = Math.max(maxReachedStep, n)
-  // Enable step buttons up to maxReachedStep
+export function unlockStep(n) {
+  setMaxStep(n)
+  const max = getMaxStep()
   ;[1, 2, 3].forEach(i => {
     const btn = document.getElementById(`step-btn-${i}`)
-    if (btn) btn.disabled = i > maxReachedStep
+    if (btn) btn.disabled = i > max
   })
   goToStep(n)
 }
 
-// Step button click → navigate back (or forward if already unlocked)
 document.querySelectorAll('.step-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const n = parseInt(btn.dataset.step)
-    if (n <= maxReachedStep) goToStep(n)
+    if (n <= getMaxStep()) goToStep(n)
   })
 })
 
-// Event from calibration panel → go to step 3
 document.addEventListener('calibration:validated', () => unlockStep(3))
 
-// ── Method toggle ──────────────────────────────────────────────────────────
+// ── Method toggle ──────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.method-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -85,10 +97,10 @@ document.querySelectorAll('.method-btn').forEach(btn => {
   })
 })
 
-// ── Toolbar ────────────────────────────────────────────────────────────────
+// ── Toolbar ────────────────────────────────────────────────────────────────────
 
-document.getElementById('btn-draw').addEventListener('click', () => setMode('draw'))
-document.getElementById('btn-select').addEventListener('click', () => setMode('select'))
+document.getElementById('btn-draw').addEventListener('click', () => _setMode('draw'))
+document.getElementById('btn-select').addEventListener('click', () => _setMode('select'))
 
 document.getElementById('btn-delete').addEventListener('click', () => {
   if (!selectedId) return
@@ -97,35 +109,120 @@ document.getElementById('btn-delete').addEventListener('click', () => {
   selectedId = null
   document.getElementById('zone-form').classList.add('hidden')
   renderZoneList()
-  updateAnalyseBtn()
+  _updateAnalyseBtn()
 })
 
 document.getElementById('btn-finish').addEventListener('click', () => {
   draw.changeMode('simple_select')
-  setDrawingState(false)
+  _setDrawingState(false)
 })
 
-function setMode(m) {
+function _setMode(m) {
   document.getElementById('btn-draw').classList.toggle('active', m === 'draw')
   document.getElementById('btn-select').classList.toggle('active', m === 'select')
-  if (m === 'draw') { draw.changeMode('draw_polygon'); setDrawingState(true) }
-  else { draw.changeMode('simple_select'); setDrawingState(false) }
+  if (m === 'draw') { draw.changeMode('draw_polygon'); _setDrawingState(true) }
+  else { draw.changeMode('simple_select'); _setDrawingState(false) }
 }
 
-function setDrawingState(drawing) {
+function _setDrawingState(drawing) {
   document.getElementById('toolbar-finish').classList.toggle('hidden', !drawing)
 }
 
-// ── Draw events ────────────────────────────────────────────────────────────
+// ── Building selector ──────────────────────────────────────────────────────────
+
+export function renderBuildingSelector() {
+  const container = document.getElementById('building-chips-list')
+  if (!container) return
+  const active = getActiveBuilding()
+  container.innerHTML = getAllBuildings().map(b => `
+    <button class="building-chip ${b.id === active?.id ? 'active' : ''}" data-bid="${b.id}"
+      style="--bcolor:${b.color}">
+      <span class="bchip-dot" style="background:${b.color}"></span>
+      <span class="bchip-name">${_escHtml(b.name)}</span>
+    </button>
+  `).join('')
+
+  container.querySelectorAll('.building-chip').forEach(el => {
+    el.addEventListener('click', () => _switchToBuilding(el.dataset.bid))
+  })
+}
+
+document.getElementById('btn-add-building')?.addEventListener('click', () => {
+  const n = getAllBuildings().length + 1
+  const name = prompt(`Nom du bâtiment :`, `Bâtiment ${n}`) || `Bâtiment ${n}`
+  const b = createBuilding(name)
+  _switchToBuilding(b.id)
+})
+
+function _switchToBuilding(id) {
+  setActiveBuilding(id)
+
+  // Restore draw to active building's zones
+  draw.deleteAll()
+  const b = getActiveBuilding()
+  if (b) {
+    Array.from(b.zones.values()).forEach(zone => {
+      if (zone.geometry) {
+        draw.add({ type: 'Feature', id: zone.id, geometry: zone.geometry, properties: {} })
+      }
+    })
+  }
+
+  // Update inactive building overlays
+  _updateInactiveOverlay()
+
+  // Reset form selection
+  selectedId = null
+  document.getElementById('zone-form')?.classList.add('hidden')
+
+  // Re-sync step UI for this building
+  const max = getMaxStep()
+  ;[1, 2, 3].forEach(i => {
+    const btn = document.getElementById(`step-btn-${i}`)
+    if (btn) btn.disabled = i > max
+  })
+  goToStep(Math.min(max, 1))  // go to step 1 when switching (results shown separately)
+
+  renderBuildingSelector()
+  renderZoneList()
+  _updateAnalyseBtn()
+
+  // Show stored results if building has been analyzed
+  const stored = getActiveBuilding()
+  if (stored?.analysis) {
+    unlockStep(stored.maxReachedStep)
+    showResults(stored.analysis, stored.renovation, buildGeoJSON(), stored.stationId, stored.calibration)
+    goToStep(stored.maxReachedStep)
+  }
+}
+
+function _updateInactiveOverlay() {
+  // Remove old inactive sources/layers
+  getAllBuildings().forEach(b => {
+    if (map.getLayer(`ib-fill-${b.id}`)) map.removeLayer(`ib-fill-${b.id}`)
+    if (map.getLayer(`ib-line-${b.id}`)) map.removeLayer(`ib-line-${b.id}`)
+    if (map.getSource(`ib-${b.id}`)) map.removeSource(`ib-${b.id}`)
+  })
+
+  getInactiveBuildingsGeoJSON().forEach(({ id, color, geojson }) => {
+    map.addSource(`ib-${id}`, { type: 'geojson', data: geojson })
+    map.addLayer({ id: `ib-fill-${id}`, type: 'fill', source: `ib-${id}`,
+      paint: { 'fill-color': color, 'fill-opacity': 0.08 } })
+    map.addLayer({ id: `ib-line-${id}`, type: 'line', source: `ib-${id}`,
+      paint: { 'line-color': color, 'line-width': 1.5, 'line-dasharray': [3, 3] } })
+  })
+}
+
+// ── Draw events ────────────────────────────────────────────────────────────────
 
 map.on('draw.create', ({ features }) => {
   features.forEach(feat => addZone(feat))
   renderZoneList()
-  updateAnalyseBtn()
+  _updateAnalyseBtn()
   selectZone(features[features.length - 1].id)
   setTimeout(() => {
     draw.changeMode('simple_select', { featureIds: [] })
-    setDrawingState(false)
+    _setDrawingState(false)
     document.getElementById('btn-draw').classList.remove('active')
     document.getElementById('btn-select').classList.add('active')
   }, 0)
@@ -138,7 +235,7 @@ map.on('draw.delete', ({ features }) => {
     document.getElementById('zone-form').classList.add('hidden')
   }
   renderZoneList()
-  updateAnalyseBtn()
+  _updateAnalyseBtn()
 })
 
 map.on('draw.selectionchange', ({ features }) => {
@@ -149,21 +246,22 @@ map.on('draw.modechange', ({ mode }) => {
   if (mode === 'direct_select') setTimeout(() => draw.changeMode('simple_select', { featureIds: [] }), 0)
 })
 
-// ── Zone list ──────────────────────────────────────────────────────────────
+// ── Zone list ──────────────────────────────────────────────────────────────────
 
-function renderZoneList() {
+export function renderZoneList() {
   const list  = document.getElementById('zone-list')
   const empty = document.getElementById('zones-empty')
   const count = document.getElementById('zone-count')
   const zones = getAllZones()
 
-  count.textContent = zones.length
-  empty.classList.toggle('hidden', zones.length > 0)
+  if (count) count.textContent = zones.length
+  if (empty) empty.classList.toggle('hidden', zones.length > 0)
 
+  if (!list) return
   list.innerHTML = zones.map(z => `
     <li class="zone-item ${z.id === selectedId ? 'selected' : ''}" data-id="${z.id}">
       <span class="zone-dot" style="background:${z.color}"></span>
-      <span class="zone-name">${z.label}</span>
+      <span class="zone-name">${_escHtml(z.label)}</span>
       <span class="zone-meta">${z.properties.construction_year}</span>
     </li>
   `).join('')
@@ -176,9 +274,18 @@ function renderZoneList() {
   })
 }
 
-// ── Zone form ──────────────────────────────────────────────────────────────
+// ── Zone form (rich UI) ────────────────────────────────────────────────────────
 
-function selectZone(id) {
+
+function _eraFromYear(y) {
+  if (y <= 1947) return 0
+  if (y <= 1974) return 1
+  if (y <= 1990) return 2
+  if (y <= 2005) return 3
+  return 4
+}
+
+export function selectZone(id) {
   selectedId = id
   const zone = getZone(id)
   if (!zone) return
@@ -188,37 +295,153 @@ function selectZone(id) {
   )
 
   const form = document.getElementById('zone-form')
-  form.classList.remove('hidden')
-  document.getElementById('form-zone-label').textContent = zone.label
+  form?.classList.remove('hidden')
+
+  const dot = document.getElementById('form-zone-dot')
+  if (dot) { dot.style.background = zone.color }
+
+  const titleEl = document.getElementById('form-zone-label')
+  if (titleEl) titleEl.textContent = zone.label
 
   const p = zone.properties
-  document.getElementById('f-label').value   = zone.label
-  document.getElementById('f-height').value  = p.height_m
-  document.getElementById('f-year').value    = p.construction_year
-  document.getElementById('f-type').value    = p.zone_type
-  document.getElementById('f-ground').value  = String(p.is_ground_floor)
-  document.getElementById('f-roof').value    = String(p.has_roof)
-  document.getElementById('f-heating').value = p.energy_system_type
+
+  // Label
+  const fLabel = document.getElementById('f-label')
+  if (fLabel) fLabel.value = zone.label
+
+  // Year + era chips
+  const fYear = document.getElementById('f-year')
+  if (fYear) fYear.value = p.construction_year
+  _syncEraChips(p.construction_year)
+
+  // Usage cards
+  _setActive('.usage-card', 'usage', p.zone_type)
+  const fType = document.getElementById('f-type')
+  if (fType) fType.value = p.zone_type
+
+  // Height stepper
+  const fHeight = document.getElementById('f-height')
+  if (fHeight) fHeight.value = p.height_m
+
+  // Struct checkboxes
+  const fGround = document.getElementById('f-ground')
+  if (fGround) fGround.checked = p.is_ground_floor
+  const fRoof = document.getElementById('f-roof')
+  if (fRoof) fRoof.checked = p.has_roof
+
+  // Infiltration chips
+  _setActive('.infil-chip', 'infil', p.infiltration_level || 'standard')
+  const fInfil = document.getElementById('f-infiltration')
+  if (fInfil) fInfil.value = p.infiltration_level || 'standard'
+
+  // Heating cards
+  _setActive('.heating-card', 'heating', p.energy_system_type)
+  const fHeating = document.getElementById('f-heating')
+  if (fHeating) fHeating.value = p.energy_system_type
 }
 
-document.getElementById('btn-save-zone').addEventListener('click', () => {
-  if (!selectedId) return
-  updateZoneProps(selectedId, {
-    label:   document.getElementById('f-label').value,
-    height:  document.getElementById('f-height').value,
-    year:    document.getElementById('f-year').value,
-    type:    document.getElementById('f-type').value,
-    ground:  document.getElementById('f-ground').value,
-    roof:    document.getElementById('f-roof').value,
-    heating: document.getElementById('f-heating').value,
+function _setActive(cardSel, attr, value) {
+  document.querySelectorAll(cardSel).forEach(el => {
+    el.classList.toggle('active', el.dataset[attr] === value)
   })
-  renderZoneList()
-  document.getElementById('form-zone-label').textContent = getZone(selectedId)?.label || ''
-})
+}
 
-// ── Analyse ────────────────────────────────────────────────────────────────
+function _syncEraChips(year) {
+  const idx = _eraFromYear(year)
+  document.querySelectorAll('.era-chip').forEach((el, i) =>
+    el.classList.toggle('active', i === idx)
+  )
+}
 
-function updateAnalyseBtn() {
+// Bind form events (called once on DOMContentLoaded-equivalent)
+function _bindZoneFormEvents() {
+  const form = document.getElementById('zone-form')
+  if (!form) return
+
+  // Era chips
+  form.querySelectorAll('.era-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const year = parseInt(btn.dataset.year)
+      const fYear = document.getElementById('f-year')
+      if (fYear) fYear.value = year
+      _syncEraChips(year)
+    })
+  })
+
+  // Year input → sync chips
+  document.getElementById('f-year')?.addEventListener('input', e => {
+    _syncEraChips(parseInt(e.target.value) || 1975)
+  })
+
+  // Usage cards
+  form.querySelectorAll('.usage-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      form.querySelectorAll('.usage-card').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      const fType = document.getElementById('f-type')
+      if (fType) fType.value = btn.dataset.usage
+    })
+  })
+
+  // Height stepper
+  document.getElementById('btn-height-minus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-height')
+    if (el) el.value = Math.max(1, parseFloat(el.value) - 0.5).toFixed(1)
+  })
+  document.getElementById('btn-height-plus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-height')
+    if (el) el.value = Math.min(50, parseFloat(el.value) + 0.5).toFixed(1)
+  })
+
+  // Infiltration chips
+  form.querySelectorAll('.infil-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      form.querySelectorAll('.infil-chip').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      const fInfil = document.getElementById('f-infiltration')
+      if (fInfil) fInfil.value = btn.dataset.infil
+    })
+  })
+
+  // Heating cards
+  form.querySelectorAll('.heating-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      form.querySelectorAll('.heating-card').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      const fHeating = document.getElementById('f-heating')
+      if (fHeating) fHeating.value = btn.dataset.heating
+    })
+  })
+
+  // Save zone
+  document.getElementById('btn-save-zone')?.addEventListener('click', () => {
+    if (!selectedId) return
+    updateZoneProps(selectedId, {
+      label:      document.getElementById('f-label')?.value,
+      height:     document.getElementById('f-height')?.value,
+      year:       document.getElementById('f-year')?.value,
+      type:       document.getElementById('f-type')?.value,
+      ground:     document.getElementById('f-ground')?.checked,
+      roof:       document.getElementById('f-roof')?.checked,
+      heating:    document.getElementById('f-heating')?.value,
+      infiltration: document.getElementById('f-infiltration')?.value,
+    })
+    renderZoneList()
+    const zone = getZone(selectedId)
+    if (zone) {
+      const dot = document.getElementById('form-zone-dot')
+      if (dot) dot.style.background = zone.color
+      const titleEl = document.getElementById('form-zone-label')
+      if (titleEl) titleEl.textContent = zone.label
+    }
+  })
+}
+
+_bindZoneFormEvents()
+
+// ── Analyse ────────────────────────────────────────────────────────────────────
+
+function _updateAnalyseBtn() {
   document.getElementById('btn-analyse').disabled = !hasZones()
 }
 
@@ -228,30 +451,38 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
   btn.innerHTML = '<span class="loader"></span> Calcul en cours…'
 
   try {
-    const drawnFeatures = draw.getAll().features
-    const geojson = buildGeoJSON(drawnFeatures)
-
+    const geojson = buildGeoJSON()
     const stationId = getSelectedStationId()
+
     const [analysis, renovation] = await Promise.all([
       analyzeBuilding(geojson, simMethod, stationId),
       analyzeRenovation(geojson, simMethod, stationId),
     ])
 
+    setAnalysis(analysis, stationId)
+    setRenovation(renovation)
+
     unlockStep(2)
-    showResults(analysis, renovation, geojson, stationId)
+    showResults(analysis, renovation, geojson, stationId, {}, [])
   } catch (err) {
     alert(`Erreur : ${err.message}`)
     console.error(err)
   } finally {
     btn.disabled = false
     btn.innerHTML = 'Analyser le bâtiment →'
-    updateAnalyseBtn()
+    _updateAnalyseBtn()
   }
 })
 
-// ── Draw styles ────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-function drawStyles() {
+function _escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ── Draw styles ────────────────────────────────────────────────────────────────
+
+function _drawStyles() {
   return [
     { id: 'gl-draw-polygon-fill', type: 'fill',
       filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
