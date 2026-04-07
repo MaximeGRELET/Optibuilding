@@ -5,41 +5,46 @@ import { simulateActions, analyzeRenovation } from './api.js'
 import { renderHourlyCharts, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
 import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
+import {
+  Chart, LineController, LineElement, BarController, BarElement,
+  CategoryScale, LinearScale, PointElement, Tooltip, Legend,
+} from 'chart.js'
+
+Chart.register(LineController, LineElement, BarController, BarElement,
+  CategoryScale, LinearScale, PointElement, Tooltip, Legend)
 
 const DPE_COLORS = {
   A: '#2ecc71', B: '#82e24d', C: '#c8e84d',
   D: '#f1c40f', E: '#f39c12', F: '#e67e22', G: '#e74c3c',
 }
 
-// Icons matched on action_id prefix
-function _actionIcon(actionId = '') {
-  if (actionId.includes('roof'))    return '🏠'
-  if (actionId.includes('wall') || actionId.includes('ite')) return '🧱'
-  if (actionId.includes('floor'))   return '⬇️'
-  if (actionId.includes('window') || actionId.includes('vitrage')) return '🪟'
-  if (actionId.includes('mvhr') || actionId.includes('vmc'))       return '💨'
-  if (actionId.includes('pac') || actionId.includes('heating') || actionId.includes('chauffe')) return '🔥'
-  if (actionId.includes('bridge') || actionId.includes('pont'))    return '🔗'
-  if (actionId.includes('solar'))   return '☀️'
-  if (actionId.includes('air') || actionId.includes('etanch'))     return '🔒'
-  return '⚙️'
-}
+const MONTHS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 
-// Scenario subtitles
+const SCENARIO_PALETTE = [
+  '#4f80ff', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4',
+]
+
 const SCENARIO_SUBTITLES = {
-  light:       'Amélioration rapide, faible investissement',
-  intermediate:'Bon rapport coût / performance',
-  bbc_retrofit:'Niveau BBC — réduction maximale',
+  light:        'Amélioration rapide, faible investissement',
+  intermediate: 'Bon rapport coût / performance',
+  bbc_retrofit: 'Niveau BBC — réduction maximale',
 }
 
-let _currentGeojson = null
-let _currentStationId = null
-let _currentCalibration = {}  // { '*': { u_walls: ..., ... } } — set on validate
-let _pendingRenovation = null
+// ── Module state ──────────────────────────────────────────────────────────────
 
-export function showResults(analysis, renovation, geojson, stationId = null) {
-  _currentGeojson = geojson
+let _currentGeojson   = null
+let _currentStationId = null
+let _currentCalibration = {}
+let _pendingRenovation = null
+let _baselineMonthly  = null   // 12-value array from calibrated result
+let _renoMonthlyChart = null
+
+// ── Public ────────────────────────────────────────────────────────────────────
+
+export function showResults(analysis, renovation, geojson, stationId = null, calibration = {}) {
+  _currentGeojson   = geojson
   _currentStationId = stationId
+  _currentCalibration = calibration
   _pendingRenovation = renovation
 
   _renderDPE(analysis)
@@ -48,13 +53,20 @@ export function showResults(analysis, renovation, geojson, stationId = null) {
   hideCharts()
   if (analysis.t_ext_hourly) renderHourlyCharts(analysis)
 
-  // Hide actions + renovation + compare until calibration validated
   document.getElementById('actions-section')?.classList.add('hidden')
   document.getElementById('renovation-section')?.classList.add('hidden')
   document.getElementById('compare-section')?.classList.add('hidden')
 
   _renderCalibrationPanel(geojson)
 }
+
+export function clearResults() {
+  _currentGeojson = null
+  _baselineMonthly = null
+  if (_renoMonthlyChart) { _renoMonthlyChart.destroy(); _renoMonthlyChart = null }
+}
+
+// ── Calibration panel ─────────────────────────────────────────────────────────
 
 function _renderCalibrationPanel(geojson) {
   const mount = document.getElementById('calibration-panel-mount')
@@ -63,9 +75,11 @@ function _renderCalibrationPanel(geojson) {
     mount, geojson, _currentStationId,
     (result) => { _renderDPE(result); _renderKPIs(result) },
     async (calibratedResult, calibration) => {
-      // Update DPE/KPIs with the exact calibrated result
       if (calibratedResult) { _renderDPE(calibratedResult); _renderKPIs(calibratedResult) }
       _currentCalibration = calibration || {}
+
+      // Store baseline monthly heating for comparison graph
+      _baselineMonthly = _extractMonthly(calibratedResult)
 
       document.getElementById('actions-section')?.classList.remove('hidden')
       document.getElementById('renovation-section')?.classList.remove('hidden')
@@ -74,9 +88,9 @@ function _renderCalibrationPanel(geojson) {
       _renderComparePanel()
       document.dispatchEvent(new CustomEvent('calibration:validated'))
 
-      // Re-run renovation with calibrated baseline
       try {
         const reno = await analyzeRenovation(_currentGeojson, 'monthly', _currentStationId, _currentCalibration)
+        _pendingRenovation = reno
         _renderRenovation(reno)
       } catch (err) {
         console.error('Renovation (calibrated) error:', err)
@@ -88,15 +102,15 @@ function _renderCalibrationPanel(geojson) {
   )
 }
 
+// ── Actions panel ─────────────────────────────────────────────────────────────
+
 function _renderActionsPanel() {
   const mount = document.getElementById('actions-panel-mount')
   if (!mount) return
-
   const compareMount = document.getElementById('compare-panel-mount')
 
   mountActionsPanel(
     mount,
-    // onSimulate
     async (enabledActions) => {
       if (!_currentGeojson || !enabledActions.length) { hideCustomResult(); return }
       try {
@@ -108,9 +122,8 @@ function _renderActionsPanel() {
         console.error('Action simulation error:', err)
       }
     },
-    // onSave
     (name, result, actions) => {
-      addSavedScenario(name, result, actions, compareMount)
+      addSavedScenario(name, result, actions, compareMount, _baselineMonthly)
     },
   )
 }
@@ -163,45 +176,138 @@ function _renderRenovation(reno) {
     return
   }
 
-  container.innerHTML = reno.scenarios.map(s => {
+  // Draw monthly comparison chart
+  _renderRenoMonthlyChart(reno.scenarios)
+
+  container.innerHTML = reno.scenarios.map((s, idx) => {
     const before   = s.baseline_dpe || '?'
     const after    = s.after_dpe || '?'
     const savings  = _fmt(s.cost_savings_eur_per_year, 0)
     const invest   = _fmt(s.investment_center_eur || s.investment_max_eur, 0)
     const roi      = s.simple_payback_years > 99 ? '>99' : _fmt(s.simple_payback_years, 0)
     const subtitle = SCENARIO_SUBTITLES[s.scenario_id] || ''
-
+    const color    = SCENARIO_PALETTE[idx % SCENARIO_PALETTE.length]
     const actionsHTML = _renderScenarioActions(s.scenario?.actions || s.actions || [])
 
     return `
-      <div class="reno-card">
-        <div class="reno-card-header">
-          <div class="reno-card-title">
-            <span class="reno-label">${s.scenario?.label || s.scenario_id}</span>
-            <span class="reno-subtitle">${subtitle}</span>
+      <div class="reno-card" style="--scolor:${color}">
+        <div class="reno-color-bar" style="background:${color}"></div>
+        <div class="reno-card-body">
+          <div class="reno-card-header">
+            <div class="reno-card-title">
+              <span class="reno-label">${s.scenario?.label || s.scenario_id}</span>
+              <span class="reno-subtitle">${subtitle}</span>
+            </div>
+            <div class="reno-dpe">
+              <span class="dpe-chip" style="background:${DPE_COLORS[before] || '#888'}">${before}</span>
+              →
+              <span class="dpe-chip" style="background:${DPE_COLORS[after] || '#888'}">${after}</span>
+            </div>
           </div>
-          <div class="reno-dpe">
-            <span class="dpe-chip" style="background:${DPE_COLORS[before] || '#888'}">${before}</span>
-            →
-            <span class="dpe-chip" style="background:${DPE_COLORS[after] || '#888'}">${after}</span>
+          <div class="reno-stats">
+            <div class="reno-stat"><div class="reno-stat-val">${savings} €</div><div class="reno-stat-lbl">économie/an</div></div>
+            <div class="reno-stat"><div class="reno-stat-val">${invest} €</div><div class="reno-stat-lbl">investissement</div></div>
+            <div class="reno-stat"><div class="reno-stat-val">${roi} ans</div><div class="reno-stat-lbl">retour</div></div>
           </div>
+          ${actionsHTML}
         </div>
-        <div class="reno-stats">
-          <div class="reno-stat"><div class="reno-stat-val">${savings} €</div><div class="reno-stat-lbl">économie/an</div></div>
-          <div class="reno-stat"><div class="reno-stat-val">${invest} €</div><div class="reno-stat-lbl">investissement</div></div>
-          <div class="reno-stat"><div class="reno-stat-val">${roi} ans</div><div class="reno-stat-lbl">retour</div></div>
-        </div>
-        ${actionsHTML}
       </div>`
   }).join('')
 }
+
+function _renderRenoMonthlyChart(scenarios) {
+  const wrap = document.getElementById('renovation-monthly-chart-wrap')
+  const ctx  = document.getElementById('canvas-reno-monthly')
+  if (!wrap || !ctx) return
+
+  if (_renoMonthlyChart) { _renoMonthlyChart.destroy(); _renoMonthlyChart = null }
+
+  const datasets = []
+
+  // Baseline (reference calibrée ou baseline du premier scénario)
+  const baseline = _baselineMonthly || _extractMonthlyFromScenario(scenarios[0], 'baseline')
+  if (baseline) {
+    datasets.push({
+      label: 'Référence',
+      data: baseline,
+      borderColor: '#7a7f9a',
+      backgroundColor: 'rgba(122,127,154,0.08)',
+      borderWidth: 2.5,
+      borderDash: [5, 3],
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: 10,
+    })
+  }
+
+  // One line per scenario
+  scenarios.forEach((s, i) => {
+    const monthly = _extractMonthlyFromScenario(s, 'after')
+    if (!monthly) return
+    const color = SCENARIO_PALETTE[i % SCENARIO_PALETTE.length]
+    datasets.push({
+      label: s.scenario?.label || s.scenario_id,
+      data: monthly,
+      borderColor: color,
+      backgroundColor: color.replace(')', ',0.1)').replace('rgb', 'rgba'),
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: i,
+    })
+  })
+
+  if (!datasets.length) return
+
+  _renoMonthlyChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels: MONTHS, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#e8eaf2', font: { size: 10 }, boxWidth: 24, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} kWh`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: '#2d3147' },
+          ticks: { color: '#7a7f9a', font: { size: 10 } },
+        },
+        y: {
+          grid: { color: '#2d3147' },
+          ticks: {
+            color: '#7a7f9a', font: { size: 10 },
+            callback: v => `${v.toLocaleString('fr-FR')} kWh`,
+          },
+          title: { display: true, text: 'Besoins chauffage (kWh)', color: '#7a7f9a', font: { size: 10 } },
+        },
+      },
+    },
+  })
+
+  wrap.classList.remove('hidden')
+}
+
+// ── Scenario actions list ─────────────────────────────────────────────────────
 
 function _renderScenarioActions(actions) {
   if (!actions?.length) return ''
   const items = actions.map(a => {
     const icon  = _actionIcon(a.action_id || '')
-    const label = a.label || a.action_id || type
-    const desc  = _actionParamSummary(a)
+    const label = a.label || a.action_id || ''
+    const desc  = a.description || ''
     return `
       <div class="reno-action-item">
         <span class="reno-action-icon">${icon}</span>
@@ -214,12 +320,41 @@ function _renderScenarioActions(actions) {
   return `<div class="reno-actions"><div class="reno-actions-title">Actions incluses</div>${items}</div>`
 }
 
-function _actionParamSummary(a) {
-  // description already contains the key params (e.g. "R≥7 m²K/W", "Uw ≤ 1.3 W/m²K")
-  return a.description || ''
+function _actionIcon(id = '') {
+  if (id.includes('roof'))    return '🏠'
+  if (id.includes('wall') || id.includes('ite')) return '🧱'
+  if (id.includes('floor'))   return '⬇️'
+  if (id.includes('window') || id.includes('vitrage')) return '🪟'
+  if (id.includes('mvhr') || id.includes('vmc'))       return '💨'
+  if (id.includes('pac') || id.includes('heating'))    return '♻️'
+  if (id.includes('bridge') || id.includes('pont'))    return '🔗'
+  if (id.includes('solar'))   return '☀️'
+  if (id.includes('air') || id.includes('etanch'))     return '🔒'
+  return '⚙️'
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function _extractMonthly(result) {
+  if (!result) return null
+  // Try zone_results first
+  if (result.zone_results?.length) {
+    const monthly = new Array(12).fill(0)
+    result.zone_results.forEach(z => {
+      if (z.heating_need_monthly?.length === 12)
+        z.heating_need_monthly.forEach((v, i) => { monthly[i] += (v || 0) })
+    })
+    if (monthly.some(v => v > 0)) return monthly
+  }
+  // Fallback: flat heating_need_monthly
+  if (result.heating_need_monthly?.length === 12) return result.heating_need_monthly
+  return null
+}
+
+function _extractMonthlyFromScenario(s, key) {
+  const full = s[`${key}_full`] || (key === 'baseline' ? s.baseline : s.after)
+  return _extractMonthly(full)
+}
 
 function _fmt(val, decimals) {
   if (val == null || isNaN(val)) return '—'
