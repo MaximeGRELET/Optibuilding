@@ -66,7 +66,6 @@ function _renderColdWeek(hourly, tExt) {
   const tInt  = slice(hourly.t_int)
   const tExtW = slice(tExt)
   const labels = Array.from({ length: 168 }, (_, i) => {
-    const h = (start + i) % 8760
     return i % 24 === 0 ? `J${Math.floor(i / 24) + 1}` : ''
   })
 
@@ -158,37 +157,48 @@ function _renderAnnualLoad(analysis) {
 function _renderMonthlyBar(analysis) {
   const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
-  // Sum heating_need_monthly across zones
+  // Sum monthly values across zones
   const heating = new Array(12).fill(0)
+  const cooling = new Array(12).fill(0)
   const solar   = new Array(12).fill(0)
   for (const zone of (analysis.zones || [])) {
     ;(zone.heating_need_monthly || []).forEach((v, i) => { heating[i] += v })
+    ;(zone.cooling_need_monthly || []).forEach((v, i) => { cooling[i] += v })
     ;(zone.solar_gains_monthly  || []).forEach((v, i) => { solar[i]   += v })
+  }
+
+  const hasCooling = cooling.some(v => v > 0)
+  const datasets = [
+    {
+      label: 'Chauffage (kWh)',
+      data: heating,
+      backgroundColor: 'rgba(79,128,255,0.7)',
+      borderRadius: 3,
+      order: 3,
+    },
+    {
+      label: 'Apports solaires (kWh)',
+      data: solar,
+      backgroundColor: 'rgba(245,158,11,0.5)',
+      borderRadius: 3,
+      order: 1,
+    },
+  ]
+  if (hasCooling) {
+    datasets.splice(1, 0, {
+      label: 'Refroidissement (kWh)',
+      data: cooling,
+      backgroundColor: 'rgba(16,185,129,0.65)',
+      borderRadius: 3,
+      order: 2,
+    })
   }
 
   _destroyIfExists('monthly')
   const ctx = document.getElementById('canvas-monthly').getContext('2d')
   instances.monthly = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: MONTHS,
-      datasets: [
-        {
-          label: 'Chauffe (kWh)',
-          data: heating,
-          backgroundColor: 'rgba(79,128,255,0.7)',
-          borderRadius: 3,
-          order: 2,
-        },
-        {
-          label: 'Apports solaires (kWh)',
-          data: solar,
-          backgroundColor: 'rgba(245,158,11,0.5)',
-          borderRadius: 3,
-          order: 1,
-        },
-      ],
-    },
+    data: { labels: MONTHS, datasets },
     options: {
       ..._baseOptions(),
       scales: {

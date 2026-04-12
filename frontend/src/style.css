@@ -1045,6 +1045,30 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .infil-sub { font-size: 9px; color: var(--text-muted); }
 .infil-chip.active .infil-sub { color: color-mix(in srgb, var(--accent) 70%, transparent); }
 
+/* Setpoints */
+.setpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.setpoint-icon { font-size: 14px; flex-shrink: 0; }
+.setpoint-label { font-size: 11px; color: var(--text-muted); width: 110px; flex-shrink: 0; }
+.setpoint-range {
+  flex: 1;
+  height: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.setpoint-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 /* Heating cards */
 .heating-cards {
   display: grid;

@@ -28,7 +28,8 @@ class GeoJSONFeatureCollection(BaseModel):
 class AnalysisRequest(BaseModel):
     building: GeoJSONFeatureCollection
     method: Literal["monthly", "hourly"] = "monthly"
-    station_id: str | None = None   # si fourni, utilise le fichier EPW réel
+    station_id: str | None = None
+    calibration: dict[str, "CalibrationParamsSchema"] = {}  # overrides par zone ou "*"
 
 
 class EnvelopeBreakdown(BaseModel):

@@ -323,6 +323,18 @@ export function selectZone(id) {
   const fHeight = document.getElementById('f-height')
   if (fHeight) fHeight.value = p.height_m
 
+  // Floors stepper
+  const fFloors = document.getElementById('f-floors')
+  if (fFloors) fFloors.value = p.floors ?? Math.max(1, Math.round(p.height_m / 3))
+
+  // Setpoints
+  const heatSp = p.heating_setpoint_c ?? 19.0
+  const coolSp = p.cooling_setpoint_c ?? 26.0
+  const fHeatSp = document.getElementById('f-heat-sp')
+  if (fHeatSp) { fHeatSp.value = heatSp; document.getElementById('f-heat-sp-val').textContent = `${heatSp} °C` }
+  const fCoolSp = document.getElementById('f-cool-sp')
+  if (fCoolSp) { fCoolSp.value = coolSp; document.getElementById('f-cool-sp-val').textContent = `${coolSp} °C` }
+
   // Struct checkboxes
   const fGround = document.getElementById('f-ground')
   if (fGround) fGround.checked = p.is_ground_floor
@@ -393,6 +405,24 @@ function _bindZoneFormEvents() {
     if (el) el.value = Math.min(50, parseFloat(el.value) + 0.5).toFixed(1)
   })
 
+  // Floors stepper
+  document.getElementById('btn-floors-minus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-floors')
+    if (el) el.value = Math.max(1, parseInt(el.value) - 1)
+  })
+  document.getElementById('btn-floors-plus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-floors')
+    if (el) el.value = Math.min(20, parseInt(el.value) + 1)
+  })
+
+  // Setpoint sliders
+  document.getElementById('f-heat-sp')?.addEventListener('input', e => {
+    document.getElementById('f-heat-sp-val').textContent = `${e.target.value} °C`
+  })
+  document.getElementById('f-cool-sp')?.addEventListener('input', e => {
+    document.getElementById('f-cool-sp-val').textContent = `${e.target.value} °C`
+  })
+
   // Infiltration chips
   form.querySelectorAll('.infil-chip').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -417,14 +447,17 @@ function _bindZoneFormEvents() {
   document.getElementById('btn-save-zone')?.addEventListener('click', () => {
     if (!selectedId) return
     updateZoneProps(selectedId, {
-      label:      document.getElementById('f-label')?.value,
-      height:     document.getElementById('f-height')?.value,
-      year:       document.getElementById('f-year')?.value,
-      type:       document.getElementById('f-type')?.value,
-      ground:     document.getElementById('f-ground')?.checked,
-      roof:       document.getElementById('f-roof')?.checked,
-      heating:    document.getElementById('f-heating')?.value,
-      infiltration: document.getElementById('f-infiltration')?.value,
+      label:              document.getElementById('f-label')?.value,
+      height:             document.getElementById('f-height')?.value,
+      floors:             document.getElementById('f-floors')?.value,
+      year:               document.getElementById('f-year')?.value,
+      type:               document.getElementById('f-type')?.value,
+      ground:             document.getElementById('f-ground')?.checked,
+      roof:               document.getElementById('f-roof')?.checked,
+      heating:            document.getElementById('f-heating')?.value,
+      infiltration:       document.getElementById('f-infiltration')?.value,
+      heating_setpoint_c: document.getElementById('f-heat-sp')?.value,
+      cooling_setpoint_c: document.getElementById('f-cool-sp')?.value,
     })
     renderZoneList()
     const zone = getZone(selectedId)

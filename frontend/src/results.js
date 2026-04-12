@@ -155,10 +155,11 @@ export function _renderKPIs(a) {
   const container = document.getElementById('key-figures')
   if (!container) return
   const kpis = [
-    { label: 'Chauffage',    value: _fmt(a.heating_need_kwh / 1000, 1), unit: 'MWh/an' },
-    { label: 'Facture est.', value: _fmt(a.cost_eur, 0),                unit: '€/an' },
-    { label: 'Surface',      value: _fmt(a.total_floor_area_m2, 0),     unit: 'm²' },
-    { label: 'CO₂ total',    value: _fmt(a.co2_kg / 1000, 1),           unit: 't CO₂/an' },
+    { label: 'Chauffage',       value: _fmt(a.heating_need_kwh / 1000, 1), unit: 'MWh/an' },
+    { label: 'Refroidissement', value: _fmt((a.cooling_need_kwh || 0) / 1000, 1), unit: 'MWh/an' },
+    { label: 'Facture est.',    value: _fmt(a.cost_eur, 0),                unit: '€/an' },
+    { label: 'Surface',         value: _fmt(a.total_floor_area_m2, 0),     unit: 'm²' },
+    { label: 'CO₂ total',       value: _fmt((a.co2_kg_m2 || 0) * (a.total_floor_area_m2 || 1) / 1000, 1), unit: 't CO₂/an' },
   ]
   container.innerHTML = kpis.map(k => `
     <div class="kpi-card">
