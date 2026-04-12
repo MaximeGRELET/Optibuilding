@@ -32,24 +32,27 @@ const instances = {}
  * Render all hourly charts from analysis result.
  * @param {object} analysis  full response from POST /analysis (method=hourly)
  */
-export function renderHourlyCharts(analysis) {
-  const section = document.getElementById('charts-section')
-  section.classList.remove('hidden')
+export function renderMonthlyChart(analysis) {
+  _renderMonthlyBar(analysis)
+  document.getElementById('monthly-chart-section')?.classList.remove('hidden')
+}
 
-  // Aggregate across zones (first zone drives temperature curves)
+export function renderHourlyCharts(analysis) {
   const firstZone = analysis.zones?.[0]
   if (!firstZone?.hourly) return
 
-  const h = firstZone.hourly
+  const section = document.getElementById('charts-section')
+  section.classList.remove('hidden')
+
   const tExt = analysis.t_ext_hourly || []
 
-  _renderColdWeek(h, tExt)
+  _renderColdWeek(firstZone.hourly, tExt)
   _renderAnnualLoad(analysis)
-  _renderMonthlyBar(analysis)
 }
 
 export function hideCharts() {
-  document.getElementById('charts-section').classList.add('hidden')
+  document.getElementById('charts-section')?.classList.add('hidden')
+  document.getElementById('monthly-chart-section')?.classList.add('hidden')
   Object.values(instances).forEach(c => c.destroy())
   Object.keys(instances).forEach(k => delete instances[k])
 }

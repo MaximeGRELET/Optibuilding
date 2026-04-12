@@ -2,7 +2,7 @@
 
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
 import { simulateActions, analyzeRenovation } from './api.js'
-import { renderHourlyCharts, hideCharts } from './charts.js'
+import { renderHourlyCharts, renderMonthlyChart, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
 import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
 import {
@@ -51,6 +51,7 @@ export function showResults(analysis, renovation, geojson, stationId = null, cal
   _renderKPIs(analysis)
 
   hideCharts()
+  renderMonthlyChart(analysis)
   if (analysis.t_ext_hourly) renderHourlyCharts(analysis)
 
   document.getElementById('actions-section')?.classList.add('hidden')
@@ -195,8 +196,8 @@ function _renderRenovation(reno) {
         <div class="reno-card-body">
           <div class="reno-card-header">
             <div class="reno-card-title">
-              <span class="reno-label">${s.scenario?.label || s.scenario_id}</span>
-              <span class="reno-subtitle">${subtitle}</span>
+              <span class="reno-label">${s.scenario?.label || s.scenario_label || s.scenario_id}</span>
+              <span class="reno-subtitle">${subtitle || s.scenario?.description || s.scenario_description || ''}</span>
             </div>
             <div class="reno-dpe">
               <span class="dpe-chip" style="background:${DPE_COLORS[before] || '#888'}">${before}</span>
@@ -337,10 +338,11 @@ function _actionIcon(id = '') {
 
 function _extractMonthly(result) {
   if (!result) return null
-  // Try zone_results first
-  if (result.zone_results?.length) {
+  // API returns "zones" (not "zone_results")
+  const zones = result.zones || result.zone_results || []
+  if (zones.length) {
     const monthly = new Array(12).fill(0)
-    result.zone_results.forEach(z => {
+    zones.forEach(z => {
       if (z.heating_need_monthly?.length === 12)
         z.heating_need_monthly.forEach((v, i) => { monthly[i] += (v || 0) })
     })
@@ -352,7 +354,9 @@ function _extractMonthly(result) {
 }
 
 function _extractMonthlyFromScenario(s, key) {
-  const full = s[`${key}_full`] || (key === 'baseline' ? s.baseline : s.after)
+  // Support both alias names (baseline_full/before, after_full/after)
+  const full = s[`${key}_full`]
+    || (key === 'baseline' ? (s.baseline || s.before) : (s.after_full || s.after))
   return _extractMonthly(full)
 }
 
