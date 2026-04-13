@@ -1,7 +1,6 @@
 """Router — POST /analysis"""
 
 from __future__ import annotations
-import json
 from fastapi import APIRouter, HTTPException
 
 from thermal_engine.io.geojson_loader import load_building
@@ -18,28 +17,35 @@ def run_analysis(req: AnalysisRequest) -> dict:
     """
     Compute building energy needs from a GeoJSON FeatureCollection.
 
-    Returns DPE class, primary energy, CO₂, heating needs, and per-zone
-    envelope breakdown.
+    Returns DPE class, primary energy, CO₂, heating/cooling needs, and
+    per-zone envelope breakdown.
+
+    Per-zone setpoints (heating_setpoint_c / cooling_setpoint_c) embedded in
+    the GeoJSON properties are automatically applied as CalibrationParams.
+    Additional overrides can be passed via the `calibration` field.
     """
-    # Deserialize GeoJSON via the thermal-engine loader
     geojson_dict = req.building.model_dump()
     try:
         building = load_building(geojson_dict)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"GeoJSON invalide : {exc}") from exc
 
-    # Extract location for synthetic weather (centroid of first zone)
     lat, lon = _extract_location(geojson_dict)
     city = geojson_dict["features"][0]["properties"].get("city", "")
     weather = get_weather(lat, lon, city, station_id=req.station_id)
 
+    from api.routers.calibration import build_engine_cal
+    engine_cal = build_engine_cal(geojson_dict, req.calibration)
+
     try:
-        result = compute_building_needs(building, weather, method=req.method)
+        result = compute_building_needs(
+            building, weather, method=req.method,
+            calibration=engine_cal if engine_cal else None,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur de simulation : {exc}") from exc
 
     d = result.to_dict()
-    # Attach exterior temperature series for hourly charts
     if req.method == "hourly":
         d["t_ext_hourly"] = [round(float(v), 1) for v in weather.dry_bulb_temp_c]
     return d

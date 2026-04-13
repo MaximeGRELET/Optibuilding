@@ -158,6 +158,17 @@
                 </div>
               </div>
 
+              <!-- Floors stepper -->
+              <div class="zfield zfield-row">
+                <label class="zfield-label">Nombre d'étages</label>
+                <div class="stepper">
+                  <button type="button" id="btn-floors-minus" class="stepper-btn">−</button>
+                  <input type="number" id="f-floors" class="stepper-val" value="1" min="1" max="20" step="1" />
+                  <span class="stepper-unit">ét.</span>
+                  <button type="button" id="btn-floors-plus" class="stepper-btn">+</button>
+                </div>
+              </div>
+
               <!-- Struct toggles -->
               <div class="zfield zfield-row">
                 <label class="zfield-label">Position</label>
@@ -224,6 +235,57 @@
                 <input type="hidden" id="f-heating" value="gas_boiler" />
               </div>
 
+              <!-- Setpoints -->
+              <div class="zfield">
+                <label class="zfield-label">Consignes thermiques</label>
+                <div class="setpoint-row">
+                  <span class="setpoint-icon">🔥</span>
+                  <label class="setpoint-label">Chauffage</label>
+                  <input type="range" id="f-heat-sp" class="setpoint-range" min="14" max="22" step="0.5" value="19" />
+                  <span class="setpoint-val" id="f-heat-sp-val">19 °C</span>
+                </div>
+                <div class="setpoint-row">
+                  <span class="setpoint-icon">❄️</span>
+                  <label class="setpoint-label">Climatisation</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="f-has-cooling" />
+                    <span class="toggle-knob"></span>
+                  </label>
+                  <span class="setpoint-val" id="f-has-cooling-label" style="width:auto;color:var(--text-muted)">désactivée</span>
+                </div>
+                <div id="cooling-setpoint-row" class="setpoint-row hidden">
+                  <span class="setpoint-icon" style="visibility:hidden">❄️</span>
+                  <label class="setpoint-label">Consigne froid</label>
+                  <input type="range" id="f-cool-sp" class="setpoint-range" min="22" max="30" step="0.5" value="26" />
+                  <span class="setpoint-val" id="f-cool-sp-val">26 °C</span>
+                </div>
+                <div id="cooling-system-row" class="hidden">
+                  <div class="heating-cards">
+                    <button class="heating-card active" data-cooling="split_ac">
+                      <span class="hcard-icon">🌬️</span>
+                      <span class="hcard-label">Split AC</span>
+                      <span class="hcard-sub">COP 2,8</span>
+                    </button>
+                    <button class="heating-card" data-cooling="multisplit">
+                      <span class="hcard-icon">💨</span>
+                      <span class="hcard-label">Multisplit</span>
+                      <span class="hcard-sub">COP 3,0</span>
+                    </button>
+                    <button class="heating-card" data-cooling="reversible_hp">
+                      <span class="hcard-icon">♻️</span>
+                      <span class="hcard-label">PAC réversible</span>
+                      <span class="hcard-sub">COP 3,5</span>
+                    </button>
+                    <button class="heating-card" data-cooling="district_cooling">
+                      <span class="hcard-icon">🏙️</span>
+                      <span class="hcard-label">Réseau froid</span>
+                      <span class="hcard-sub">EP 0,77</span>
+                    </button>
+                  </div>
+                  <input type="hidden" id="f-cooling-system" value="split_ac" />
+                </div>
+              </div>
+
               <button id="btn-save-zone" class="primary-btn full-width">Enregistrer la zone</button>
             </div>
           </div>
@@ -253,6 +315,10 @@
                   <div id="dpe-ep"></div>
                   <div id="dpe-co2"></div>
                 </div>
+              </div>
+              <div id="dpe-cooling-wrap" style="display:none;align-items:center;gap:10px;margin-top:8px">
+                <div id="dpe-cooling-badge" style="width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;color:#fff;background:#444"></div>
+                <div id="dpe-cooling-kpi" style="font-size:0.85rem;color:var(--text-muted)"></div>
               </div>
             </div>
             <div id="key-figures"></div>
@@ -294,8 +360,12 @@
             <div id="renovation-section">
               <div class="section-title">Scénarios pré-définis</div>
               <div id="renovation-monthly-chart-wrap" class="hidden">
-                <div class="section-title" style="margin-bottom:6px">Consommation mensuelle comparée</div>
+                <div class="section-title" style="margin-bottom:6px">Besoins de chauffage mensuels comparés</div>
                 <canvas id="canvas-reno-monthly" style="max-height:220px"></canvas>
+              </div>
+              <div id="renovation-cooling-chart-wrap" class="hidden">
+                <div class="section-title" style="margin-bottom:6px">Besoins de refroidissement mensuels comparés</div>
+                <canvas id="canvas-reno-cooling" style="max-height:200px"></canvas>
               </div>
               <div id="renovation-cards"></div>
             </div>
