@@ -112,7 +112,7 @@ class ReplaceWindowsParams(BaseModel):
 
 
 class ReplaceHeatingParams(BaseModel):
-    system_type: Literal["gas_boiler", "heat_pump", "district_heating"] = "heat_pump"
+    system_type: Literal["gas_boiler", "heat_pump", "reversible_hp", "district_heating"] = "heat_pump"
     efficiency: float = Field(3.0, gt=0)
     cost_min_eur: float = Field(8000, ge=0)
     cost_max_eur: float = Field(14000, ge=0)
@@ -122,6 +122,13 @@ class InstallMVHRParams(BaseModel):
     heat_recovery_efficiency: float = Field(0.85, gt=0, le=1.0)
     cost_min_eur: float = Field(3000, ge=0)
     cost_max_eur: float = Field(5000, ge=0)
+
+
+class InstallCoolingParams(BaseModel):
+    system_type: Literal["split_ac", "multisplit", "reversible_hp", "district_cooling"] = "split_ac"
+    cop: float = Field(2.8, gt=0)
+    cost_min_eur: float = Field(3000, ge=0)
+    cost_max_eur: float = Field(6000, ge=0)
 
 
 class CustomScenario(BaseModel):
@@ -134,6 +141,7 @@ class CustomScenario(BaseModel):
     replace_windows: ReplaceWindowsParams | None = None
     replace_heating: ReplaceHeatingParams | None = None
     install_mvhr: InstallMVHRParams | None = None
+    install_cooling: InstallCoolingParams | None = None
 
 
 class RenovationRequest(BaseModel):
@@ -215,3 +223,4 @@ class CalibrateRequest(BaseModel):
     station_id: str | None = None
     calibration: dict[str, CalibrationParamsSchema] = {}
     real_consumption: RealConsumption | None = None
+    real_cooling_consumption: RealConsumption | None = None

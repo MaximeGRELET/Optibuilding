@@ -175,6 +175,37 @@ export const ACTIONS_CATALOG = [
       },
     ],
   },
+  {
+    id: 'install_cooling',
+    label: 'Système de climatisation',
+    icon: '🌬️',
+    description: 'Installation d\'un système de refroidissement actif',
+    params: [
+      {
+        key: 'system_type', label: 'Type de système', type: 'select',
+        default: 'split_ac',
+        options: [
+          { value: 'split_ac',         label: '🌬️ Split AC (COP 2,8)' },
+          { value: 'multisplit',        label: '💨 Multisplit (COP 3,0)' },
+          { value: 'reversible_hp',     label: '♻️ PAC réversible (COP 3,5)' },
+          { value: 'district_cooling',  label: '🏙️ Réseau de froid' },
+        ],
+      },
+      {
+        key: 'cop', label: 'COP nominal', type: 'range',
+        min: 1.0, max: 5.0, step: 0.1, default: 2.8,
+        display: v => v.toFixed(1),
+      },
+      {
+        key: 'cost_min_eur', label: 'Coût min (€)', type: 'number',
+        default: 3000, min: 0, step: 500,
+      },
+      {
+        key: 'cost_max_eur', label: 'Coût max (€)', type: 'number',
+        default: 6000, min: 0, step: 500,
+      },
+    ],
+  },
 ]
 
 /** Returns a fresh copy of default param values for an action. */

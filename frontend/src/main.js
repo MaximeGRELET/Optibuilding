@@ -330,10 +330,21 @@ export function selectZone(id) {
   // Setpoints
   const heatSp = p.heating_setpoint_c ?? 19.0
   const coolSp = p.cooling_setpoint_c ?? 26.0
+  const hasCooling = p.has_cooling ?? false
   const fHeatSp = document.getElementById('f-heat-sp')
   if (fHeatSp) { fHeatSp.value = heatSp; document.getElementById('f-heat-sp-val').textContent = `${heatSp} °C` }
+  const fHasCooling = document.getElementById('f-has-cooling')
+  if (fHasCooling) {
+    fHasCooling.checked = hasCooling
+    document.getElementById('f-has-cooling-label').textContent = hasCooling ? 'activée' : 'désactivée'
+    document.getElementById('cooling-setpoint-row')?.classList.toggle('hidden', !hasCooling)
+    document.getElementById('cooling-system-row')?.classList.toggle('hidden', !hasCooling)
+  }
   const fCoolSp = document.getElementById('f-cool-sp')
   if (fCoolSp) { fCoolSp.value = coolSp; document.getElementById('f-cool-sp-val').textContent = `${coolSp} °C` }
+  _setActive('[data-cooling]', 'cooling', p.cooling_system_type || 'split_ac')
+  const fCoolSys = document.getElementById('f-cooling-system')
+  if (fCoolSys) fCoolSys.value = p.cooling_system_type || 'split_ac'
 
   // Struct checkboxes
   const fGround = document.getElementById('f-ground')
@@ -347,7 +358,7 @@ export function selectZone(id) {
   if (fInfil) fInfil.value = p.infiltration_level || 'standard'
 
   // Heating cards
-  _setActive('.heating-card', 'heating', p.energy_system_type)
+  _setActive('[data-heating]', 'heating', p.energy_system_type)
   const fHeating = document.getElementById('f-heating')
   if (fHeating) fHeating.value = p.energy_system_type
 }
@@ -415,12 +426,18 @@ function _bindZoneFormEvents() {
     if (el) el.value = Math.min(20, parseInt(el.value) + 1)
   })
 
-  // Setpoint sliders
+  // Setpoint sliders & cooling toggle
   document.getElementById('f-heat-sp')?.addEventListener('input', e => {
     document.getElementById('f-heat-sp-val').textContent = `${e.target.value} °C`
   })
   document.getElementById('f-cool-sp')?.addEventListener('input', e => {
     document.getElementById('f-cool-sp-val').textContent = `${e.target.value} °C`
+  })
+  document.getElementById('f-has-cooling')?.addEventListener('change', e => {
+    const on = e.target.checked
+    document.getElementById('f-has-cooling-label').textContent = on ? 'activée' : 'désactivée'
+    document.getElementById('cooling-setpoint-row')?.classList.toggle('hidden', !on)
+    document.getElementById('cooling-system-row')?.classList.toggle('hidden', !on)
   })
 
   // Infiltration chips
@@ -434,12 +451,22 @@ function _bindZoneFormEvents() {
   })
 
   // Heating cards
-  form.querySelectorAll('.heating-card').forEach(btn => {
+  form.querySelectorAll('[data-heating]').forEach(btn => {
     btn.addEventListener('click', () => {
-      form.querySelectorAll('.heating-card').forEach(b => b.classList.remove('active'))
+      form.querySelectorAll('[data-heating]').forEach(b => b.classList.remove('active'))
       btn.classList.add('active')
       const fHeating = document.getElementById('f-heating')
       if (fHeating) fHeating.value = btn.dataset.heating
+    })
+  })
+
+  // Cooling system cards
+  form.querySelectorAll('[data-cooling]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      form.querySelectorAll('[data-cooling]').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      const fCoolSys = document.getElementById('f-cooling-system')
+      if (fCoolSys) fCoolSys.value = btn.dataset.cooling
     })
   })
 
@@ -456,8 +483,10 @@ function _bindZoneFormEvents() {
       roof:               document.getElementById('f-roof')?.checked,
       heating:            document.getElementById('f-heating')?.value,
       infiltration:       document.getElementById('f-infiltration')?.value,
+      has_cooling:        document.getElementById('f-has-cooling')?.checked,
       heating_setpoint_c: document.getElementById('f-heat-sp')?.value,
       cooling_setpoint_c: document.getElementById('f-cool-sp')?.value,
+      cooling_system:     document.getElementById('f-cooling-system')?.value,
     })
     renderZoneList()
     const zone = getZone(selectedId)

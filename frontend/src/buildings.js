@@ -91,7 +91,9 @@ export function addZone(feature) {
       is_ground_floor: true,
       has_roof: true,
       energy_system_type: 'gas_boiler',
+      cooling_system_type: 'split_ac',
       infiltration_level: 'standard',
+      has_cooling: false,
       heating_setpoint_c: 19.0,
       cooling_setpoint_c: 26.0,
     },
@@ -127,10 +129,12 @@ export function updateZoneProps(id, formValues) {
     construction_year:  parseInt(formValues.year),
     is_ground_floor:    formValues.ground === 'true' || formValues.ground === true,
     has_roof:           formValues.roof === 'true' || formValues.roof === true,
-    energy_system_type: formValues.heating,
-    infiltration_level: formValues.infiltration || 'standard',
-    heating_setpoint_c: parseFloat(formValues.heating_setpoint_c) || 19.0,
-    cooling_setpoint_c: parseFloat(formValues.cooling_setpoint_c) || 26.0,
+    energy_system_type:  formValues.heating,
+    cooling_system_type: formValues.cooling_system || 'split_ac',
+    infiltration_level:  formValues.infiltration || 'standard',
+    has_cooling:         formValues.has_cooling === true || formValues.has_cooling === 'true',
+    heating_setpoint_c:  parseFloat(formValues.heating_setpoint_c) || 19.0,
+    cooling_setpoint_c:  parseFloat(formValues.cooling_setpoint_c) || 26.0,
   })
 }
 
@@ -198,11 +202,13 @@ export function buildGeoJSON() {
         floors:             p.floors || Math.max(1, Math.round(p.height_m / 3)),
         is_ground_floor:    p.is_ground_floor,
         has_roof:           p.has_roof,
-        heating_setpoint_c: p.heating_setpoint_c ?? (p.zone_type === 'residential' ? 19.0 : 18.0),
-        cooling_setpoint_c: p.cooling_setpoint_c ?? 26.0,
-        thermal_mass_class: _massFromYear(p.construction_year),
-        infiltration_ach:   _infiltrationFromLevel(p.infiltration_level, p.construction_year),
-        energy_system:      _systemFromType(p.energy_system_type),
+        has_cooling:         p.has_cooling ?? false,
+        heating_setpoint_c:  p.heating_setpoint_c ?? (p.zone_type === 'residential' ? 19.0 : 18.0),
+        cooling_setpoint_c:  p.cooling_setpoint_c ?? 26.0,
+        cooling_system_type: p.cooling_system_type || 'split_ac',
+        thermal_mass_class:  _massFromYear(p.construction_year),
+        infiltration_ach:    _infiltrationFromLevel(p.infiltration_level, p.construction_year),
+        energy_systems:      _buildEnergySystems(p),
         envelope:           _envelopeFromYear(p.construction_year),
       },
     }
@@ -265,12 +271,37 @@ function _baseInfil(year) {
 
 function _systemFromType(type) {
   const s = {
-    gas_boiler:       { system_id: 'boiler', type: 'gas_boiler',       covers: 'heating', efficiency_nominal: 0.87,  fuel: 'natural_gas' },
-    heat_pump:        { system_id: 'pac',    type: 'heat_pump',        covers: 'heating', efficiency_nominal: 3.2,   fuel: 'electricity' },
-    electric_direct:  { system_id: 'elec',   type: 'electric_direct',  covers: 'heating', efficiency_nominal: 1.0,   fuel: 'electricity' },
-    district_heating: { system_id: 'rcu',    type: 'district_heating', covers: 'heating', efficiency_nominal: 0.95,  fuel: 'district_heat' },
+    gas_boiler:       { system_id: 'boiler', type: 'gas_boiler',       covers: ['heating'], efficiency_nominal: 0.87,  fuel: 'natural_gas' },
+    heat_pump:        { system_id: 'pac',    type: 'heat_pump',        covers: ['heating'], efficiency_nominal: 3.2,   fuel: 'electricity' },
+    electric_direct:  { system_id: 'elec',   type: 'electric_direct',  covers: ['heating'], efficiency_nominal: 1.0,   fuel: 'electricity' },
+    district_heating: { system_id: 'rcu',    type: 'district_heating', covers: ['heating'], efficiency_nominal: 0.95,  fuel: 'district_heat' },
   }
   return s[type] || s.gas_boiler
+}
+
+const _COOLING_SYSTEM_CONFIGS = {
+  split_ac:         { type: 'split_ac',         covers: ['cooling'], efficiency_nominal: 2.8, fuel: 'electricity' },
+  multisplit:       { type: 'multisplit',        covers: ['cooling'], efficiency_nominal: 3.0, fuel: 'electricity' },
+  reversible_hp:    { type: 'reversible_hp',     covers: ['heating', 'cooling'], efficiency_nominal: 3.5, fuel: 'electricity' },
+  district_cooling: { type: 'district_cooling',  covers: ['cooling'], efficiency_nominal: 1.0, fuel: 'district_cold' },
+}
+
+function _buildEnergySystems(p) {
+  const heatType = p.energy_system_type || 'gas_boiler'
+  const coolType = p.cooling_system_type || 'split_ac'
+  const hasCooling = p.has_cooling ?? false
+
+  // PAC réversible : un seul système pour chauffage + froid
+  if (hasCooling && coolType === 'reversible_hp') {
+    return [{ system_id: 'reversible_hp', type: 'reversible_hp', covers: ['heating', 'cooling'], efficiency_nominal: 3.5, fuel: 'electricity' }]
+  }
+
+  const systems = [{ system_id: heatType, ...(_systemFromType(heatType)) }]
+  if (hasCooling) {
+    const cool = _COOLING_SYSTEM_CONFIGS[coolType] || _COOLING_SYSTEM_CONFIGS.split_ac
+    systems.push({ system_id: coolType, ...cool })
+  }
+  return systems
 }
 
 function _envelopeFromYear(year) {

@@ -113,9 +113,16 @@ class BuildingNeedsResult:
     co2_kg_m2: float = 0.0
     dpe_class: str = "G"
     dpe_co2_class: str = "G"
+    dpe_cooling_class: str = "—"
+    cooling_need_kwh_m2: float = 0.0
     final_energy_kwh: float = 0.0
     primary_energy_kwh: float = 0.0
     cost_eur: float = 0.0
+    # Système de refroidissement
+    cooling_system_type: str = ""
+    cooling_final_energy_kwh: float = 0.0
+    cooling_primary_energy_kwh: float = 0.0
+    cooling_cost_eur: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -123,15 +130,21 @@ class BuildingNeedsResult:
             "method": self.method,
             "dpe_class": self.dpe_class,
             "dpe_co2_class": self.dpe_co2_class,
+            "dpe_cooling_class": self.dpe_cooling_class,
             "primary_energy_kwh_m2": round(self.primary_energy_kwh_m2, 1),
             "co2_kg_m2": round(self.co2_kg_m2, 2),
             "heating_need_kwh": round(self.heating_need_kwh, 1),
             "cooling_need_kwh": round(self.cooling_need_kwh, 1),
+            "cooling_need_kwh_m2": round(self.cooling_need_kwh_m2, 1),
             "dhw_need_kwh": round(self.dhw_need_kwh, 1),
             "final_energy_kwh": round(self.final_energy_kwh, 1),
             "primary_energy_kwh": round(self.primary_energy_kwh, 1),
             "cost_eur": round(self.cost_eur, 0),
             "total_floor_area_m2": round(self.total_floor_area_m2, 1),
+            "cooling_system_type": self.cooling_system_type,
+            "cooling_final_energy_kwh": round(self.cooling_final_energy_kwh, 1),
+            "cooling_primary_energy_kwh": round(self.cooling_primary_energy_kwh, 1),
+            "cooling_cost_eur": round(self.cooling_cost_eur, 0),
             "zones": [z.to_dict() for z in self.zone_results],
         }
 
@@ -218,7 +231,6 @@ def _compute_zone_needs_monthly(
     for m in range(12):
         t_m = _HOURS_PER_MONTH[m]           # heures dans le mois
         dt_heat = max(0.0, t_heat - t_ext_monthly[m])  # ΔT chauffage
-        dt_cool = max(0.0, t_ext_monthly[m] - t_cool)  # ΔT refroidissement
 
         q_losses_wh = h_total * dt_heat * t_m   # Wh
         q_gains_wh  = monthly_solar_kwh[m] * 1000.0 + monthly_int_kwh[m] * 1000.0  # Wh
@@ -231,14 +243,18 @@ def _compute_zone_needs_monthly(
         else:
             q_heat_m = 0.0
 
-        # ── Refroidissement (ISO 13790 §12.2.1, inversion) ─────
-        q_losses_cool_wh = h_total * dt_cool * t_m
-        if q_gains_wh > 0:
-            gamma_c = q_losses_cool_wh / q_gains_wh if q_gains_wh > 0 else 0.0
-            eta_c = _utilization_factor(gamma_c, 1.0 + tau_h / 15.0)
-            q_cool_m = max(0.0, q_gains_wh - eta_c * q_losses_cool_wh)
-        else:
+        # ── Refroidissement ───────────────────────────────────────
+        # Approche symétrique au chauffage (bilan direct, sans facteur d'utilisation) :
+        #   - Capacité de dissipation naturelle = H × (t_cool − t_ext) × t_m  quand t_ext < t_cool
+        #   - Charge thermique totale           = apports + H × (t_ext − t_cool) × t_m quand t_ext > t_cool
+        #   - Besoin de froid = max(0, charge − dissipation naturelle)
+        # Sentinel t_cool ≥ 50 = refroidissement désactivé (has_cooling=false → 99 °C)
+        if t_cool >= 50.0:
             q_cool_m = 0.0
+        else:
+            q_nat_cool_wh = h_total * max(0.0, t_cool - t_ext_monthly[m]) * t_m
+            q_ext_heat_wh = h_total * max(0.0, t_ext_monthly[m] - t_cool) * t_m
+            q_cool_m = max(0.0, q_gains_wh + q_ext_heat_wh - q_nat_cool_wh)
 
         monthly_heat.append(q_heat_m / 1000.0)   # kWh
         monthly_cool.append(q_cool_m / 1000.0)
@@ -494,12 +510,25 @@ _SYSTEM_PARAMS: dict[str, dict] = {
 }
 _DEFAULT_SYSTEM = _SYSTEM_PARAMS["gas_boiler"]
 
+# Coefficients systèmes de refroidissement (énergie finale → primaire/CO₂/coût)
+_COOLING_SYSTEM_PARAMS: dict[str, dict] = {
+    "split_ac":          {"eff": 2.8, "ep": 2.3, "co2": 0.052, "cost": 0.2516},
+    "multisplit":        {"eff": 3.0, "ep": 2.3, "co2": 0.052, "cost": 0.2516},
+    "reversible_hp":     {"eff": 3.5, "ep": 2.3, "co2": 0.052, "cost": 0.2516},
+    "district_cooling":  {"eff": 1.0, "ep": 0.77,"co2": 0.109, "cost": 0.060},
+}
+_DEFAULT_COOLING_SYSTEM = _COOLING_SYSTEM_PARAMS["split_ac"]
+
 # Seuils DPE énergie primaire [kWh EP/(m²·an)] — décret 2021
 _DPE_THRESHOLDS: list[tuple[float, str]] = [
     (70, "A"), (110, "B"), (180, "C"), (250, "D"), (330, "E"), (420, "F"), (9999, "G"),
 ]
 _CO2_THRESHOLDS: list[tuple[float, str]] = [
     (6, "A"), (11, "B"), (30, "C"), (50, "D"), (70, "E"), (100, "F"), (9999, "G"),
+]
+# Seuils DPE froid : besoin de refroidissement [kWh/(m²·an)]
+_DPE_COOL_THRESHOLDS: list[tuple[float, str]] = [
+    (2, "A"), (5, "B"), (12, "C"), (22, "D"), (33, "E"), (45, "F"), (9999, "G"),
 ]
 
 DHW_NEED_KWH_M2 = 25.0  # Besoin ECS moyen [kWh/(m²·an)] — RT 2012
@@ -515,24 +544,47 @@ def _aggregate_building_results(
     total_cool   = sum(z.cooling_need_kwh for z in zone_results)
     dhw          = DHW_NEED_KWH_M2 * total_area
 
-    # Système dominant (premier système du premier résultat)
+    # Système de chauffage dominant
     sys_params = _get_system_params(building)
-
     eff   = sys_params["eff"]
     ep    = sys_params["ep"]
     co2   = sys_params["co2"]
     cost  = sys_params["cost"]
 
-    final_energy  = (total_heat + dhw) / eff
+    final_energy   = (total_heat + dhw) / eff
     primary_energy = final_energy * ep
     co2_total      = final_energy * co2
     cost_total     = final_energy * cost
 
-    ep_m2 = primary_energy / max(total_area, 1.0)
-    co2_m2 = co2_total / max(total_area, 1.0)
+    # Système de refroidissement (si présent dans le bâtiment)
+    cool_params = _get_cooling_system_params(building)
+    cool_final   = 0.0
+    cool_primary = 0.0
+    cool_co2     = 0.0
+    cool_cost    = 0.0
+    cool_sys_type = ""
+    if cool_params and total_cool > 0:
+        cool_sys_type = next(
+            (sys.get("type", "") for zone in building.zones for sys in zone.energy_systems
+             if "cooling" in (sys.get("covers", []) if isinstance(sys.get("covers", []), list) else [sys.get("covers", "")])),
+            ""
+        )
+        cool_final   = total_cool / cool_params["eff"]
+        cool_primary = cool_final * cool_params["ep"]
+        cool_co2     = cool_final * cool_params["co2"]
+        cool_cost    = cool_final * cool_params["cost"]
 
-    dpe_class    = _dpe_class(ep_m2, _DPE_THRESHOLDS)
-    co2_class    = _dpe_class(co2_m2 * 1000.0 / max(total_area, 1.0), _CO2_THRESHOLDS)
+    # DPE global = énergie primaire chauffage + refroidissement
+    total_primary = primary_energy + cool_primary
+    total_co2     = co2_total + cool_co2
+
+    ep_m2   = total_primary / max(total_area, 1.0)
+    co2_m2  = total_co2 / max(total_area, 1.0)
+    cool_m2 = total_cool / max(total_area, 1.0)
+
+    dpe_class  = _dpe_class(ep_m2, _DPE_THRESHOLDS)
+    co2_class  = _dpe_class(co2_m2 * 1000.0, _CO2_THRESHOLDS)
+    cool_class = _dpe_class(cool_m2, _DPE_COOL_THRESHOLDS) if total_cool > 0 else "—"
 
     return BuildingNeedsResult(
         building_id=building.building_id,
@@ -546,9 +598,15 @@ def _aggregate_building_results(
         co2_kg_m2=round(co2_m2, 2),
         dpe_class=dpe_class,
         dpe_co2_class=co2_class,
+        dpe_cooling_class=cool_class,
+        cooling_need_kwh_m2=round(cool_m2, 1),
         final_energy_kwh=round(final_energy, 1),
         primary_energy_kwh=round(primary_energy, 1),
         cost_eur=round(cost_total, 0),
+        cooling_system_type=cool_sys_type,
+        cooling_final_energy_kwh=round(cool_final, 1),
+        cooling_primary_energy_kwh=round(cool_primary, 1),
+        cooling_cost_eur=round(cool_cost, 0),
     )
 
 
@@ -562,14 +620,37 @@ def _dpe_class(value: float, thresholds: list[tuple[float, str]]) -> str:
 def _get_system_params(building: Building) -> dict:
     for zone in building.zones:
         for sys in zone.energy_systems:
-            sys_type = sys.get("type", "gas_boiler")
-            if sys_type in _SYSTEM_PARAMS:
-                params = dict(_SYSTEM_PARAMS[sys_type])
+            covers = sys.get("covers", [])
+            if isinstance(covers, str):
+                covers = [covers]
+            if "heating" not in covers and "cooling" not in covers:
+                covers = ["heating"]  # fallback: ancien format sans covers
+            if "heating" in covers:
+                sys_type = sys.get("type", "gas_boiler")
+                if sys_type in _SYSTEM_PARAMS:
+                    params = dict(_SYSTEM_PARAMS[sys_type])
+                    eff_override = sys.get("efficiency_nominal")
+                    if eff_override:
+                        params["eff"] = float(eff_override)
+                    return params
+    return dict(_DEFAULT_SYSTEM)
+
+
+def _get_cooling_system_params(building: Building) -> dict | None:
+    """Retourne les paramètres du système de refroidissement, ou None si aucun."""
+    for zone in building.zones:
+        for sys in zone.energy_systems:
+            covers = sys.get("covers", [])
+            if isinstance(covers, str):
+                covers = [covers]
+            if "cooling" in covers:
+                sys_type = sys.get("type", "split_ac")
+                params = dict(_COOLING_SYSTEM_PARAMS.get(sys_type, _DEFAULT_COOLING_SYSTEM))
                 eff_override = sys.get("efficiency_nominal")
                 if eff_override:
                     params["eff"] = float(eff_override)
                 return params
-    return dict(_DEFAULT_SYSTEM)
+    return None
 
 
 def _merge_calibration(cal: dict, zone_id: str) -> CalibrationParams:

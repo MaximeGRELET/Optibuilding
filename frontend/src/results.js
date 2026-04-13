@@ -37,7 +37,8 @@ let _currentStationId = null
 let _currentCalibration = {}
 let _pendingRenovation = null
 let _baselineMonthly  = null   // 12-value array from calibrated result
-let _renoMonthlyChart = null
+let _renoMonthlyChart  = null
+let _renoCoolingChart  = null
 
 // ── Public ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export function clearResults() {
   _currentGeojson = null
   _baselineMonthly = null
   if (_renoMonthlyChart) { _renoMonthlyChart.destroy(); _renoMonthlyChart = null }
+  if (_renoCoolingChart) { _renoCoolingChart.destroy(); _renoCoolingChart = null }
 }
 
 // ── Calibration panel ─────────────────────────────────────────────────────────
@@ -74,7 +76,12 @@ function _renderCalibrationPanel(geojson) {
   if (!mount) return
   mountCalibrationPanel(
     mount, geojson, _currentStationId,
-    (result) => { _renderDPE(result); _renderKPIs(result) },
+    (result) => {
+      _renderDPE(result)
+      _renderKPIs(result)
+      // Keep top monthly chart in sync with current calibration simulation
+      if (result.zones?.length) renderMonthlyChart(result)
+    },
     async (calibratedResult, calibration) => {
       if (calibratedResult) { _renderDPE(calibratedResult); _renderKPIs(calibratedResult) }
       _currentCalibration = calibration || {}
@@ -147,6 +154,21 @@ export function _renderDPE(a) {
   const ep = a.primary_energy_kwh_m2?.toFixed(0) ?? '—'
   document.getElementById('dpe-ep').innerHTML = `${ep} <span>kWh EP/m²/an</span>`
   document.getElementById('dpe-co2').textContent = `CO₂ : ${(a.co2_kg_m2?.toFixed(1) ?? '—')} kg/m²/an`
+
+  // Cooling label
+  const coolWrap  = document.getElementById('dpe-cooling-wrap')
+  const coolBadge = document.getElementById('dpe-cooling-badge')
+  const coolKpi   = document.getElementById('dpe-cooling-kpi')
+  const cc = a.dpe_cooling_class || '—'
+  const hasCooling = cc !== '—' && (a.cooling_need_kwh_m2 ?? 0) > 0
+  if (coolWrap) coolWrap.style.display = hasCooling ? 'flex' : 'none'
+  if (coolBadge) {
+    coolBadge.textContent = cc
+    coolBadge.style.background = hasCooling ? (DPE_COLORS[cc] || '#888') : '#444'
+  }
+  if (coolKpi) {
+    coolKpi.textContent = `Froid : ${(a.cooling_need_kwh_m2 ?? 0).toFixed(1)} kWh/m²/an`
+  }
 }
 
 // ── KPIs ──────────────────────────────────────────────────────────────────────
@@ -178,8 +200,9 @@ function _renderRenovation(reno) {
     return
   }
 
-  // Draw monthly comparison chart
+  // Draw monthly comparison charts
   _renderRenoMonthlyChart(reno.scenarios)
+  _renderRenoCoolingChart(reno.scenarios)
 
   container.innerHTML = reno.scenarios.map((s, idx) => {
     const before   = s.baseline_dpe || '?'
@@ -211,6 +234,7 @@ function _renderRenovation(reno) {
             <div class="reno-stat"><div class="reno-stat-val">${invest} €</div><div class="reno-stat-lbl">investissement</div></div>
             <div class="reno-stat"><div class="reno-stat-val">${roi} ans</div><div class="reno-stat-lbl">retour</div></div>
           </div>
+          ${_renderCoolingDelta(s)}
           ${actionsHTML}
         </div>
       </div>`
@@ -302,7 +326,139 @@ function _renderRenoMonthlyChart(scenarios) {
   wrap.classList.remove('hidden')
 }
 
+function _extractCoolingMonthlyFromScenario(s, key) {
+  const full = key === 'baseline'
+    ? (s.baseline_full || s.before || s.baseline)
+    : (s.after_full   || s.after)
+  if (!full?.zones?.length) return null
+  const totals = Array(12).fill(0)
+  for (const z of full.zones) {
+    const m = z.cooling_need_monthly
+    if (m?.length === 12) m.forEach((v, i) => { totals[i] += v })
+  }
+  return totals.some(v => v > 0) ? totals : null
+}
+
+function _renderRenoCoolingChart(scenarios) {
+  const wrap = document.getElementById('renovation-cooling-chart-wrap')
+  const ctx  = document.getElementById('canvas-reno-cooling')
+  if (!wrap || !ctx) return
+
+  if (_renoCoolingChart) { _renoCoolingChart.destroy(); _renoCoolingChart = null }
+
+  const datasets = []
+
+  const baseline = _extractCoolingMonthlyFromScenario(scenarios[0], 'baseline')
+  if (baseline) {
+    datasets.push({
+      label: 'Référence',
+      data: baseline,
+      borderColor: '#7a7f9a',
+      backgroundColor: 'rgba(122,127,154,0.08)',
+      borderWidth: 2.5,
+      borderDash: [5, 3],
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: 10,
+    })
+  }
+
+  scenarios.forEach((s, i) => {
+    const monthly = _extractCoolingMonthlyFromScenario(s, 'after')
+    if (!monthly) return
+    const color = SCENARIO_PALETTE[i % SCENARIO_PALETTE.length]
+    datasets.push({
+      label: s.scenario?.label || s.scenario_id,
+      data: monthly,
+      borderColor: color,
+      backgroundColor: color.replace(')', ',0.1)').replace('rgb', 'rgba'),
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+      order: i,
+    })
+  })
+
+  if (!datasets.length || !datasets.some(d => d.label !== 'Référence')) {
+    wrap.classList.add('hidden')
+    return
+  }
+
+  _renoCoolingChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels: MONTHS, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#e8eaf2', font: { size: 10 }, boxWidth: 24, padding: 10 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} kWh`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: '#2d3147' }, ticks: { color: '#7a7f9a', font: { size: 10 } } },
+        y: {
+          grid: { color: '#2d3147' },
+          ticks: { color: '#7a7f9a', font: { size: 10 }, callback: v => `${v.toLocaleString('fr-FR')} kWh` },
+          title: { display: true, text: 'Besoins refroidissement (kWh)', color: '#7a7f9a', font: { size: 10 } },
+        },
+      },
+    },
+  })
+
+  wrap.classList.remove('hidden')
+}
+
 // ── Scenario actions list ─────────────────────────────────────────────────────
+
+function _renderCoolingDelta(s) {
+  // Use direct fields if available (new API), fallback to nested dicts
+  const coolBefore = s.cooling_need_before_kwh ?? (s.baseline_full || s.before || s.baseline)?.cooling_need_kwh ?? 0
+  const coolAfter  = s.cooling_need_after_kwh  ?? (s.after_full   || s.after)?.cooling_need_kwh ?? 0
+  if (coolBefore <= 0 && coolAfter <= 0) return ''
+
+  const delta      = coolAfter - coolBefore
+  const sign       = delta > 0 ? '+' : ''
+  const deltaColor = delta <= 0 ? '#10b981' : '#f59e0b'
+
+  const dpeBefore = s.dpe_cooling_before || '—'
+  const dpeAfter  = s.dpe_cooling_after  || '—'
+  const sysBefore = s.cooling_system_before ? `<span style="color:var(--text-muted);font-size:0.8rem">${_coolSysLabel(s.cooling_system_before)}</span>` : ''
+  const sysAfter  = s.cooling_system_after  ? `<span style="color:var(--text-muted);font-size:0.8rem"> → ${_coolSysLabel(s.cooling_system_after)}</span>` : ''
+  const costSav   = s.cooling_cost_savings_eur > 0 ? `<span style="color:#10b981;font-size:0.8rem">−${_fmt(s.cooling_cost_savings_eur, 0)} €/an</span>` : ''
+
+  const dpeChipBefore = dpeBefore !== '—' ? `<span class="dpe-chip" style="background:${DPE_COLORS[dpeBefore]||'#888'};font-size:0.75rem;padding:1px 5px">${dpeBefore}</span>` : ''
+  const dpeChipAfter  = dpeAfter  !== '—' ? `<span class="dpe-chip" style="background:${DPE_COLORS[dpeAfter] ||'#888'};font-size:0.75rem;padding:1px 5px">${dpeAfter}</span>`  : ''
+
+  return `
+    <div class="reno-cooling-delta">
+      <span class="reno-cooling-icon">❄️</span>
+      <span style="display:flex;flex-direction:column;gap:2px;flex:1">
+        <span>Froid : ${_fmt(coolBefore / 1000, 1)} → ${_fmt(coolAfter / 1000, 1)} MWh/an
+          <span style="color:${deltaColor};font-weight:600">(${sign}${_fmt(delta / 1000, 1)} MWh)</span>
+        </span>
+        <span style="display:flex;gap:6px;align-items:center">
+          ${dpeChipBefore}${dpeChipBefore && dpeChipAfter ? '→' : ''}${dpeChipAfter}
+          ${sysBefore}${sysAfter}
+          ${costSav}
+        </span>
+      </span>
+    </div>`
+}
+
+function _coolSysLabel(type) {
+  return { split_ac: 'Split AC', multisplit: 'Multisplit', reversible_hp: 'PAC réversible', district_cooling: 'Réseau froid' }[type] || type
+}
 
 function _renderScenarioActions(actions) {
   if (!actions?.length) return ''

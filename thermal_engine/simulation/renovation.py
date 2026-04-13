@@ -24,6 +24,7 @@ from thermal_engine.simulation.needs import (
     CalibrationParams,
     _get_system_params,
     _SYSTEM_PARAMS,
+    _COOLING_SYSTEM_PARAMS,
 )
 
 
@@ -163,10 +164,12 @@ class ReplaceHeatingSystem(RenovationAction):
     def __post_init__(self):
         if self.new_system_type is not None and not self.new_system_config:
             eff = self.new_efficiency or _SYSTEM_PARAMS.get(self.new_system_type, {}).get("eff", 1.0)
+            # Une PAC réversible couvre chauffage ET refroidissement
+            covers = ["heating", "cooling"] if self.new_system_type == "reversible_hp" else ["heating"]
             self.new_system_config = {
                 "system_id": f"new_{self.new_system_type}",
                 "type": self.new_system_type,
-                "covers": "heating",
+                "covers": covers,
                 "efficiency_nominal": eff,
                 "fuel": "electricity" if "heat_pump" in (self.new_system_type or "") else "natural_gas",
             }
@@ -175,11 +178,46 @@ class ReplaceHeatingSystem(RenovationAction):
         b = copy.deepcopy(building)
         if not self.new_system_config:
             return b
+        covers_new = self.new_system_config.get("covers", ["heating"])
+        if isinstance(covers_new, str):
+            covers_new = [covers_new]
         for zone in b.zones:
-            # Remplacer les systèmes de chauffage existants
-            new_systems = [s for s in zone.energy_systems if "heating" not in s.get("covers", [])]
+            # Supprimer les systèmes existants couvrant les mêmes services
+            new_systems = [
+                s for s in zone.energy_systems
+                if not any(
+                    c in (s.get("covers", ["heating"]) if isinstance(s.get("covers"), list) else [s.get("covers", "heating")])
+                    for c in covers_new
+                )
+            ]
             new_systems.append(self.new_system_config)
             zone.energy_systems = new_systems
+        return b
+
+
+@dataclass
+class InstallCoolingSystem(RenovationAction):
+    """Installe un système de refroidissement autonome (split, multisplit, réseau froid)."""
+    system_type: str = "split_ac"
+    cop: float = 2.8
+
+    def apply(self, building: Building) -> Building:
+        b = copy.deepcopy(building)
+        cool_config = {
+            "system_id": f"new_{self.system_type}",
+            "type": self.system_type,
+            "covers": ["cooling"],
+            "efficiency_nominal": self.cop,
+            "fuel": "electricity",
+        }
+        for zone in b.zones:
+            # Ne pas remplacer si une PAC réversible couvre déjà le froid
+            existing_covers_cooling = any(
+                "cooling" in (s.get("covers", []) if isinstance(s.get("covers"), list) else [s.get("covers", "")])
+                for s in zone.energy_systems
+            )
+            if not existing_covers_cooling:
+                zone.energy_systems.append(cool_config)
         return b
 
 
@@ -243,7 +281,9 @@ class RenovationResult:
 
     @property
     def cost_savings_eur_per_year(self) -> float:
-        return max(0.0, self.baseline.cost_eur - self.after.cost_eur)
+        heat_savings = self.baseline.cost_eur - self.after.cost_eur
+        cool_savings = self.baseline.cooling_cost_eur - self.after.cooling_cost_eur
+        return max(0.0, heat_savings + cool_savings)
 
     @property
     def simple_payback_years(self) -> float:
@@ -297,6 +337,18 @@ class RenovationResult:
             "heating_need_reduction_pct":   round(self.heating_reduction_pct, 1),  # alias frontend
             "co2_before_kg_m2":             round(self.baseline.co2_kg_m2, 2),
             "co2_after_kg_m2":              round(self.after.co2_kg_m2, 2),
+            # Froid
+            "dpe_cooling_before":           self.baseline.dpe_cooling_class,
+            "dpe_cooling_after":            self.after.dpe_cooling_class,
+            "cooling_need_before_kwh":      round(self.baseline.cooling_need_kwh, 1),
+            "cooling_need_after_kwh":       round(self.after.cooling_need_kwh, 1),
+            "cooling_need_before_kwh_m2":   round(self.baseline.cooling_need_kwh_m2, 1),
+            "cooling_need_after_kwh_m2":    round(self.after.cooling_need_kwh_m2, 1),
+            "cooling_system_before":        self.baseline.cooling_system_type,
+            "cooling_system_after":         self.after.cooling_system_type,
+            "cooling_cost_before_eur":      round(self.baseline.cooling_cost_eur, 0),
+            "cooling_cost_after_eur":       round(self.after.cooling_cost_eur, 0),
+            "cooling_cost_savings_eur":     round(max(0.0, self.baseline.cooling_cost_eur - self.after.cooling_cost_eur), 0),
             "cost_savings_eur_per_year":    round(self.cost_savings_eur_per_year, 0),
             "simple_payback_years":         round(self.simple_payback_years, 1) if self.simple_payback_years != float("inf") else None,
             # Résultats complets — noms canoniques + alias frontend
@@ -389,7 +441,7 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
     scenario_light = RenovationScenario(
         scenario_id="confort_plus",
         label="Confort+",
-        description="Isolation des combles et remplacement des fenêtres les plus défaillantes.",
+        description="Isolation des combles, remplacement des fenêtres et climatisation split.",
         actions=[
             InsulateRoof(
                 action_id="ins_roof_light",
@@ -409,6 +461,15 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
                 cost_min_eur=8000.0,
                 cost_max_eur=15000.0,
             ),
+            InstallCoolingSystem(
+                action_id="cool_light",
+                label="Climatisation split",
+                description="Unités split (COP 2,8) pour le refroidissement",
+                system_type="split_ac",
+                cop=2.8,
+                cost_min_eur=3000.0,
+                cost_max_eur=6000.0,
+            ),
         ],
     )
 
@@ -416,7 +477,7 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
     scenario_medium = RenovationScenario(
         scenario_id="renovation_rt",
         label="Rénovation RT",
-        description="Isolation complète de l'enveloppe (niveau RT 2012 / DPE C).",
+        description="Isolation complète de l'enveloppe + VMC + climatisation multisplit.",
         actions=[
             InsulateWalls(
                 action_id="ins_walls_med",
@@ -453,6 +514,15 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
                 cost_min_eur=3000.0,
                 cost_max_eur=5000.0,
             ),
+            InstallCoolingSystem(
+                action_id="cool_med",
+                label="Climatisation multisplit",
+                description="Système multisplit (COP 3,0) pour le refroidissement",
+                system_type="multisplit",
+                cop=3.0,
+                cost_min_eur=5000.0,
+                cost_max_eur=10000.0,
+            ),
         ],
     )
 
@@ -460,7 +530,7 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
     scenario_heavy = RenovationScenario(
         scenario_id="bbc_reno",
         label="BBC Réno",
-        description="Rénovation globale vers label BBC Rénovation (DPE B/A).",
+        description="Rénovation globale vers label BBC Rénovation avec PAC réversible (DPE B/A).",
         actions=[
             InsulateWalls(
                 action_id="ins_walls_bbc",
@@ -508,12 +578,12 @@ def build_standard_scenarios(building: Building) -> list[RenovationScenario]:
             ),
             ReplaceHeatingSystem(
                 action_id="hp_bbc",
-                label="Pompe à chaleur air/eau",
-                description="PAC air/eau pour le chauffage et l'ECS",
-                new_system_type="heat_pump",
+                label="PAC réversible air/eau",
+                description="PAC réversible pour chauffage, ECS et refroidissement (COP 3,5)",
+                new_system_type="reversible_hp",
                 new_efficiency=3.50,
-                cost_min_eur=10000.0,
-                cost_max_eur=16000.0,
+                cost_min_eur=12000.0,
+                cost_max_eur=20000.0,
             ),
         ],
     )

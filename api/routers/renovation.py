@@ -11,6 +11,7 @@ from thermal_engine.simulation.renovation import (
     ReplaceWindows,
     ReplaceHeatingSystem,
     InstallMVHR,
+    InstallCoolingSystem,
     RenovationScenario,
     simulate_multiple_scenarios,
     build_standard_scenarios,
@@ -22,7 +23,7 @@ from thermal_engine.simulation.renovation import simulate_renovation
 from api.schemas import RenovationRequest, CustomScenario, SimulateActionsRequest
 from api.dependencies import get_weather
 from api.routers.analysis import _extract_location
-from api.routers.calibration import _to_engine_params
+from api.routers.calibration import _to_engine_params, build_engine_cal
 
 router = APIRouter(prefix="/renovation", tags=["renovation"])
 
@@ -46,10 +47,7 @@ def run_renovation(req: RenovationRequest) -> dict:
     city = geojson_dict["features"][0]["properties"].get("city", "")
     weather = get_weather(lat, lon, city, station_id=req.station_id)
 
-    # Build calibration dict for the engine
-    engine_cal: dict[str, CalibrationParams] = {
-        k: _to_engine_params(v) for k, v in req.calibration.items()
-    }
+    engine_cal = build_engine_cal(geojson_dict, req.calibration)
 
     # Build scenarios list
     if req.use_standard_scenarios:
@@ -104,9 +102,7 @@ def simulate_actions(req: SimulateActionsRequest) -> dict:
     city = geojson_dict["features"][0]["properties"].get("city", "")
     weather = get_weather(lat, lon, city, station_id=req.station_id)
 
-    engine_cal: dict[str, CalibrationParams] = {
-        k: _to_engine_params(v) for k, v in req.calibration.items()
-    }
+    engine_cal = build_engine_cal(geojson_dict, req.calibration)
 
     try:
         actions = [_action_from_param(a) for a in req.actions]
@@ -136,6 +132,7 @@ _ACTION_DEFAULTS = {
     "replace_windows":  {"new_uw_w_m2k": 1.3,            "g_value": 0.6,      "cost_min_eur": 8000,  "cost_max_eur": 15000},
     "replace_heating":  {"system_type": "heat_pump", "efficiency": 3.2, "cost_min_eur": 8000, "cost_max_eur": 14000},
     "install_mvhr":     {"heat_recovery_efficiency": 0.85,"cost_min_eur": 3000,"cost_max_eur": 5000},
+    "install_cooling":  {"system_type": "split_ac", "cop": 2.8, "cost_min_eur": 3000, "cost_max_eur": 6000},
 }
 
 from api.schemas import ActionParam  # noqa: E402 — local import to avoid circular
@@ -176,14 +173,15 @@ def _action_from_param(a: ActionParam):
     if aid == "replace_heating":
         sys_type = p.get("system_type", "heat_pump")
         efficiency = float(p.get("efficiency", 3.2))
+        covers = ["heating", "cooling"] if sys_type == "reversible_hp" else ["heating"]
         return ReplaceHeatingSystem(
             action_id=aid, label="Remplacement chauffage", description=f"Système : {sys_type}",
             new_system_config={
                 "system_id": f"new_{sys_type}",
                 "type": sys_type,
-                "covers": "heating",
+                "covers": covers,
                 "efficiency_nominal": efficiency,
-                "fuel": "electricity" if sys_type in ("heat_pump", "electric_direct") else "natural_gas",
+                "fuel": "electricity" if sys_type in ("heat_pump", "reversible_hp", "electric_direct") else "natural_gas",
             },
             cost_min_eur=p["cost_min_eur"], cost_max_eur=p["cost_max_eur"],
         )
@@ -191,6 +189,14 @@ def _action_from_param(a: ActionParam):
         return InstallMVHR(
             action_id=aid, label="VMC double flux", description="Récupération de chaleur",
             heat_recovery_efficiency=float(p["heat_recovery_efficiency"]),
+            cost_min_eur=p["cost_min_eur"], cost_max_eur=p["cost_max_eur"],
+        )
+    if aid == "install_cooling":
+        sys_type = p.get("system_type", "split_ac")
+        return InstallCoolingSystem(
+            action_id=aid, label="Système de refroidissement", description=f"Système : {sys_type}",
+            system_type=sys_type,
+            cop=float(p.get("cop", 2.8)),
             cost_min_eur=p["cost_min_eur"], cost_max_eur=p["cost_max_eur"],
         )
     raise ValueError(f"Action inconnue : {aid}")
@@ -267,6 +273,18 @@ def _build_scenario(cs: CustomScenario) -> RenovationScenario:
             label="Installation VMC double flux",
             description="Récupération de chaleur sur air extrait",
             heat_recovery_efficiency=p.heat_recovery_efficiency,
+            cost_min_eur=p.cost_min_eur,
+            cost_max_eur=p.cost_max_eur,
+        ))
+
+    if cs.install_cooling:
+        p = cs.install_cooling
+        actions.append(InstallCoolingSystem(
+            action_id=f"{cs.scenario_id}_cooling",
+            label="Système de refroidissement",
+            description=f"Installation {p.system_type} (COP {p.cop})",
+            system_type=p.system_type,
+            cop=p.cop,
             cost_min_eur=p.cost_min_eur,
             cost_max_eur=p.cost_max_eur,
         ))

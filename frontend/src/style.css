@@ -1069,6 +1069,48 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
   flex-shrink: 0;
 }
 
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toggle-switch input { display: none; }
+.toggle-knob {
+  width: 32px;
+  height: 18px;
+  background: var(--border);
+  border-radius: 9px;
+  transition: background 0.2s;
+  position: relative;
+}
+.toggle-knob::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-knob { background: var(--accent); }
+.toggle-switch input:checked + .toggle-knob::after { transform: translateX(14px); }
+
+/* Renovation cooling delta */
+.reno-cooling-delta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0 2px;
+}
+.reno-cooling-icon { font-size: 13px; }
+
 /* Heating cards */
 .heating-cards {
   display: grid;

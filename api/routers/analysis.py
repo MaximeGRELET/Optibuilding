@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from thermal_engine.io.geojson_loader import load_building
-from thermal_engine.simulation.needs import compute_building_needs, CalibrationParams
+from thermal_engine.simulation.needs import compute_building_needs
 
 from api.schemas import AnalysisRequest
 from api.dependencies import get_weather
@@ -34,44 +34,8 @@ def run_analysis(req: AnalysisRequest) -> dict:
     city = geojson_dict["features"][0]["properties"].get("city", "")
     weather = get_weather(lat, lon, city, station_id=req.station_id)
 
-    # Build calibration: start from GeoJSON per-zone setpoints, then merge
-    # any explicit overrides from the request body.
-    from api.routers.calibration import _to_engine_params
-    engine_cal: dict[str, CalibrationParams] = {}
-
-    # 1. Per-zone setpoints from GeoJSON properties
-    for feat in geojson_dict.get("features", []):
-        props = feat.get("properties", {})
-        zone_id = str(props.get("zone_id", ""))
-        t_heat = props.get("heating_setpoint_c")
-        t_cool = props.get("cooling_setpoint_c")
-        if zone_id and (t_heat is not None or t_cool is not None):
-            engine_cal[zone_id] = CalibrationParams(
-                t_heating=float(t_heat) if t_heat is not None else None,
-                t_cooling=float(t_cool) if t_cool is not None else None,
-            )
-
-    # 2. Merge explicit calibration overrides from request (win over GeoJSON)
-    for zone_key, schema_params in req.calibration.items():
-        ep = _to_engine_params(schema_params)
-        if zone_key in engine_cal:
-            # Merge: keep GeoJSON setpoints unless explicitly overridden
-            existing = engine_cal[zone_key]
-            engine_cal[zone_key] = CalibrationParams(
-                u_walls=ep.u_walls,
-                u_roof=ep.u_roof,
-                u_floor=ep.u_floor,
-                u_windows=ep.u_windows,
-                wwr_override=ep.wwr_override,
-                infiltration_ach=ep.infiltration_ach,
-                ventilation_ach=ep.ventilation_ach,
-                t_heating=ep.t_heating if ep.t_heating is not None else existing.t_heating,
-                t_cooling=ep.t_cooling if ep.t_cooling is not None else existing.t_cooling,
-                internal_gains_w_m2=ep.internal_gains_w_m2,
-                altitude_m=ep.altitude_m,
-            )
-        else:
-            engine_cal[zone_key] = ep
+    from api.routers.calibration import build_engine_cal
+    engine_cal = build_engine_cal(geojson_dict, req.calibration)
 
     try:
         result = compute_building_needs(

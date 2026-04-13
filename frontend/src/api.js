@@ -68,9 +68,10 @@ export async function simulateActions(geojson, actions, method = 'monthly', stat
  * @param {object|null} realConsumption  e.g. { annual_kwh: 12000 } or { monthly_kwh: [...] }
  * @returns {Promise<object>} calibration result with monthly comparison
  */
-export async function simulateCalibration(geojson, calibration = {}, realConsumption = null, stationId = null) {
+export async function simulateCalibration(geojson, calibration = {}, realConsumption = null, stationId = null, realCoolingConsumption = null) {
   const body = { building: geojson, calibration }
   if (realConsumption) body.real_consumption = realConsumption
+  if (realCoolingConsumption) body.real_cooling_consumption = realCoolingConsumption
   if (stationId) body.station_id = stationId
   const res = await fetch(`${BASE}/calibration/simulate`, {
     method: 'POST',
