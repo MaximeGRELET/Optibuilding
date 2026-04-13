@@ -2,6 +2,75 @@
 
 const BASE = 'http://127.0.0.1:8000'
 
+// ── Auth token ────────────────────────────────────────────────────────────────
+
+export function getToken() { return localStorage.getItem('ob_token') }
+export function setToken(t) { localStorage.setItem('ob_token', t) }
+export function clearToken() { localStorage.removeItem('ob_token') }
+
+function _authHeaders() {
+  const t = getToken()
+  return t ? { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` }
+           : { 'Content-Type': 'application/json' }
+}
+
+// ── Auth API ──────────────────────────────────────────────────────────────────
+
+export async function authRegister(email, password) {
+  const res = await fetch(`${BASE}/auth/register`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`) }
+  return res.json()
+}
+
+export async function authLogin(email, password) {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`) }
+  return res.json()
+}
+
+// ── Projects API ───────────────────────────────────────────────────────────────
+
+export async function listProjects() {
+  const res = await fetch(`${BASE}/projects`, { headers: _authHeaders() })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function createProject(name, description = '') {
+  const res = await fetch(`${BASE}/projects`, {
+    method: 'POST', headers: _authHeaders(),
+    body: JSON.stringify({ name, description }),
+  })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`) }
+  return res.json()
+}
+
+export async function getProject(id) {
+  const res = await fetch(`${BASE}/projects/${id}`, { headers: _authHeaders() })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveProject(id, data) {
+  const res = await fetch(`${BASE}/projects/${id}`, {
+    method: 'PUT', headers: _authHeaders(),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteProject(id) {
+  const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE', headers: _authHeaders() })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
 /**
  * Run energy analysis on a building GeoJSON FeatureCollection.
  * @param {object} geojson  GeoJSON FeatureCollection

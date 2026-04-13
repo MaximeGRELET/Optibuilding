@@ -4,6 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers import analysis, renovation, materials, calibration, weather
+from api.routers import auth as auth_router
+from api.routers import projects as projects_router
+from api.database import init_db
 
 app = FastAPI(
     title="OptiBuilding API",
@@ -25,11 +28,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router.router)
+app.include_router(projects_router.router)
 app.include_router(analysis.router)
 app.include_router(renovation.router)
 app.include_router(materials.router)
 app.include_router(calibration.router)
 app.include_router(weather.router)
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 
 @app.get("/health", tags=["system"])
