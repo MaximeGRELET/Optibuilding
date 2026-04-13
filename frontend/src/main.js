@@ -11,9 +11,110 @@ import {
   buildGeoJSON, getInactiveBuildingsGeoJSON, setMaxStep, getMaxStep,
   setAnalysis, setRenovation,
 } from './buildings.js'
-import { analyzeBuilding, analyzeRenovation } from './api.js'
+import { analyzeBuilding, analyzeRenovation, getToken, saveProject } from './api.js'
 import { showResults } from './results.js'
 import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
+import { mountAuthPage, isLoggedIn } from './auth.js'
+import { mountProjectsPage } from './projects.js'
+import { exportStudyPDF } from './pdf-export.js'
+
+// ── View router ────────────────────────────────────────────────────────────────
+
+let _currentProjectId = null
+let _lastAnalysis     = null
+let _lastRenovation   = null
+
+function _showView(name) {
+  document.getElementById('view-auth').classList.toggle('hidden', name !== 'auth')
+  document.getElementById('view-projects').classList.toggle('hidden', name !== 'projects')
+  document.getElementById('app').classList.toggle('hidden', name !== 'app')
+  document.getElementById('project-bar').classList.toggle('hidden', name !== 'app')
+}
+
+function _bootAuth() {
+  mountAuthPage(document.getElementById('view-auth'), (userData) => {
+    _showView('projects')
+    mountProjectsPage(
+      document.getElementById('view-projects'),
+      _openProject,
+      () => { _showView('auth'); _bootAuth() },
+    )
+  })
+  _showView('auth')
+}
+
+function _bootProjects() {
+  mountProjectsPage(
+    document.getElementById('view-projects'),
+    _openProject,
+    () => { _showView('auth'); _bootAuth() },
+  )
+  _showView('projects')
+}
+
+async function _openProject(project) {
+  _currentProjectId = project.id
+  document.getElementById('project-name-label').textContent = project.name
+
+  // Load saved geojson into buildings state if present
+  if (project.geojson) {
+    _loadProjectGeoJSON(project.geojson)
+  }
+
+  _showView('app')
+
+  // Show saved analysis/reno results if available
+  if (project.analysis) {
+    _lastAnalysis = project.analysis
+    showResults(project.analysis, project.renovation)
+    setMaxStep(3)
+    goToStep(2)
+  }
+}
+
+function _loadProjectGeoJSON(geojson) {
+  // For now, load first feature set into default building
+  // A full multi-building restore would require more state management
+  try {
+    const features = geojson?.features || []
+    if (!features.length) return
+    // Clear existing zones and repopulate
+    getAllZones().forEach(z => removeZone(z.id))
+    features.forEach(f => {
+      if (f.geometry) addZone(f.geometry, f.properties || {})
+    })
+  } catch (e) {
+    console.warn('Could not restore project GeoJSON:', e)
+  }
+}
+
+// ── Auto-save project ─────────────────────────────────────────────────────────
+
+let _saveTimer = null
+export function triggerProjectSave(data = {}) {
+  if (!_currentProjectId) return
+  clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(async () => {
+    try {
+      await saveProject(_currentProjectId, {
+        geojson:    data.geojson    ?? buildGeoJSON(),
+        analysis:   data.analysis   ?? _lastAnalysis   ?? undefined,
+        renovation: data.renovation ?? _lastRenovation ?? undefined,
+        station_id: getSelectedStationId() ?? undefined,
+      })
+    } catch (e) {
+      console.warn('Auto-save failed:', e)
+    }
+  }, 1200)
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+
+if (getToken()) {
+  _bootProjects()
+} else {
+  _bootAuth()
+}
 
 // ── Map ────────────────────────────────────────────────────────────────────────
 
@@ -84,6 +185,18 @@ document.querySelectorAll('.step-btn').forEach(btn => {
     const n = parseInt(btn.dataset.step)
     if (n <= getMaxStep()) goToStep(n)
   })
+})
+
+// ── Project bar buttons ────────────────────────────────────────────────────────
+
+document.getElementById('btn-back-projects')?.addEventListener('click', () => {
+  _showView('projects')
+  _bootProjects()
+})
+
+document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
+  const name = document.getElementById('project-name-label')?.textContent || 'Étude'
+  exportStudyPDF(name, _lastAnalysis, _lastRenovation)
 })
 
 document.addEventListener('calibration:validated', () => unlockStep(3))
@@ -523,6 +636,10 @@ document.getElementById('btn-analyse').addEventListener('click', async () => {
 
     setAnalysis(analysis, stationId)
     setRenovation(renovation)
+
+    _lastAnalysis   = analysis
+    _lastRenovation = renovation
+    triggerProjectSave({ geojson, analysis, renovation })
 
     unlockStep(2)
     showResults(analysis, renovation, geojson, stationId, {}, [])

@@ -7,6 +7,13 @@
     <link rel="icon" href="data:," />
   </head>
   <body>
+    <!-- ── Auth view (login/register) ──────────────────────────────────────── -->
+    <div id="view-auth" class="view-fullscreen hidden"></div>
+
+    <!-- ── Projects list view ──────────────────────────────────────────────── -->
+    <div id="view-projects" class="view-fullscreen hidden"></div>
+
+    <!-- ── Main app ─────────────────────────────────────────────────────────── -->
     <div id="app">
       <div id="map"></div>
 
@@ -16,8 +23,12 @@
           <div class="app-logo">OB</div>
           <div class="app-title">
             <div class="app-name">OptiBuilding</div>
-            <div class="app-sub">Analyse énergétique</div>
+            <div class="app-sub" id="project-name-label">Analyse énergétique</div>
           </div>
+        </div>
+        <div id="project-bar" class="project-bar hidden">
+          <button id="btn-back-projects" class="project-bar-btn" title="Retour aux projets">← Projets</button>
+          <button id="btn-export-pdf" class="project-bar-btn project-bar-btn--pdf" title="Exporter en PDF">⬇ PDF</button>
         </div>
 
         <!-- Building selector -->
