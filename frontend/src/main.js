@@ -15,7 +15,7 @@ import { analyzeBuilding, analyzeRenovation, getToken, saveProject } from './api
 import { showResults } from './results.js'
 import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
 import { getSavedScenarios } from './scenario-compare.js'
-import { mountAuthPage, isLoggedIn } from './auth.js'
+import { mountAuthPage } from './auth.js'
 import { mountProjectsPage } from './projects.js'
 import { exportStudyPDF } from './pdf-export.js'
 import { exportStudyPPT } from './ppt-export.js'
@@ -34,7 +34,7 @@ function _showView(name) {
 }
 
 function _bootAuth() {
-  mountAuthPage(document.getElementById('view-auth'), (userData) => {
+  mountAuthPage(document.getElementById('view-auth'), () => {
     _showView('projects')
     mountProjectsPage(
       document.getElementById('view-projects'),
@@ -218,6 +218,10 @@ document.getElementById('btn-export-ppt')?.addEventListener('click', async () =>
 })
 
 document.addEventListener('calibration:validated', () => unlockStep(3))
+document.addEventListener('renovation:updated', (e) => {
+  _lastRenovation = e.detail
+  triggerProjectSave({ renovation: e.detail })
+})
 
 // ── Method toggle ──────────────────────────────────────────────────────────────
 

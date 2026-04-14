@@ -407,11 +407,11 @@ function _monthlySection(a) {
     <p>Besoins thermiques mois par mois — chauffage et refroidissement</p>
   </div>
   <h3>Besoins de chauffage (kWh/mois)</h3>
-  ${_svgBarChart(heating, 'MONTHS', '#0158A5', 660, 140)}
+  ${_svgBarChart(heating, 'MONTHS', '#B30000', 660, 140)}
   ${_monthlyTable(heating, 'Chauffage (kWh)')}
   ${hasCooling ? `
   <h3 style="margin-top:20px">Besoins de refroidissement (kWh/mois)</h3>
-  ${_svgBarChart(cooling, 'MONTHS', '#B30000', 660, 120)}
+  ${_svgBarChart(cooling, 'MONTHS', '#0158A5', 660, 120)}
   ${_monthlyTable(cooling, 'Refroidissement (kWh)')}
   ` : ''}
 </div>`

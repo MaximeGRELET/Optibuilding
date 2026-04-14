@@ -359,13 +359,14 @@ function _slideMonthly(prs, a) {
   const maxHeat    = Math.max(...heating, 1)
   const maxCool    = Math.max(...cooling, 1)
 
-  // Heating bar chart
+  // Heating bar chart (red)
   _addSectionTitle(slide, 'CHAUFFAGE (kWh/mois)', 0.4, 1.2, 12.5)
-  _addBarChart(slide, heating, maxHeat, MONTHS, 0.4, 1.45, 12.5, chartH, C.primary, C.accent)
+  _addBarChart(slide, heating, maxHeat, MONTHS, 0.4, 1.45, 12.5, chartH, C.red)
 
   if (hasCooling) {
+    // Cooling bar chart (blue)
     _addSectionTitle(slide, 'REFROIDISSEMENT (kWh/mois)', 0.4, 4.35, 12.5)
-    _addBarChart(slide, cooling, maxCool, MONTHS, 0.4, 4.6, 12.5, 2.4, C.red, 'E8A09A')
+    _addBarChart(slide, cooling, maxCool, MONTHS, 0.4, 4.6, 12.5, 2.4, C.primary)
   }
 
   // Summary stats
@@ -688,7 +689,7 @@ function _addDPEArrow(slide, before, after, x, y, w) {
   slide.addText(after, { x: x + bw + 0.8, y, w: bw, h: 1.2, fontSize: 36, bold: true, color: C.white, align: 'center', valign: 'middle' })
 }
 
-function _addBarChart(slide, values, maxV, labels, x, y, w, h, colorTop, colorMid) {
+function _addBarChart(slide, values, maxV, labels, x, y, w, h, colorTop) {
   const n   = values.length
   const gap = 0.04
   const bw  = (w - gap * (n + 1)) / n

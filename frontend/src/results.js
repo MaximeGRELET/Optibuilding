@@ -100,6 +100,7 @@ function _renderCalibrationPanel(geojson) {
         const reno = await analyzeRenovation(_currentGeojson, 'monthly', _currentStationId, _currentCalibration)
         _pendingRenovation = reno
         _renderRenovation(reno)
+        document.dispatchEvent(new CustomEvent('renovation:updated', { detail: reno }))
       } catch (err) {
         console.error('Renovation (calibrated) error:', err)
         _renderRenovation(_pendingRenovation)
@@ -205,14 +206,33 @@ function _renderRenovation(reno) {
   _renderRenoCoolingChart(reno.scenarios)
 
   container.innerHTML = reno.scenarios.map((s, idx) => {
-    const before   = s.baseline_dpe || '?'
-    const after    = s.after_dpe || '?'
+    const before   = s.baseline_dpe || s.dpe_before || '?'
+    const after    = s.after_dpe    || s.dpe_after  || '?'
     const savings  = _fmt(s.cost_savings_eur_per_year, 0)
     const invest   = _fmt(s.investment_center_eur || s.investment_max_eur, 0)
     const roi      = s.simple_payback_years > 99 ? '>99' : _fmt(s.simple_payback_years, 0)
     const subtitle = SCENARIO_SUBTITLES[s.scenario_id] || ''
     const color    = SCENARIO_PALETTE[idx % SCENARIO_PALETTE.length]
     const actionsHTML = _renderScenarioActions(s.scenario?.actions || s.actions || [])
+
+    const heatPct   = s.heating_need_reduction_pct ?? s.heating_reduction_pct
+    const epBefore  = s.primary_energy_before_kwh_m2
+    const epAfter   = s.primary_energy_after_kwh_m2
+    const heatBefore = s.heating_need_before_kwh
+    const heatAfter  = s.heating_need_after_kwh
+    const heatReductionHTML = heatPct != null ? `
+      <div class="reno-heat-reduction">
+        <span class="reno-heat-bar-wrap">
+          <span class="reno-heat-bar" style="width:${Math.max(0, 100 - heatPct)}%"></span>
+        </span>
+        <span class="reno-heat-pct">−${_fmt(heatPct, 1)} % chauffage</span>
+        <span class="reno-heat-kwh">${_fmt(heatBefore / 1000, 1)} → ${_fmt(heatAfter / 1000, 1)} MWh/an</span>
+      </div>` : ''
+    const epHTML = (epBefore != null && epAfter != null) ? `
+      <div class="reno-ep-line">
+        EP : <strong>${_fmt(epBefore, 0)}</strong> → <strong>${_fmt(epAfter, 0)}</strong> kWh EP/m²/an
+        <span class="reno-ep-note">(chauffage + ECS + froid)</span>
+      </div>` : ''
 
     return `
       <div class="reno-card" style="--scolor:${color}">
@@ -229,6 +249,8 @@ function _renderRenovation(reno) {
               <span class="dpe-chip" style="background:${DPE_COLORS[after] || '#888'}">${after}</span>
             </div>
           </div>
+          ${epHTML}
+          ${heatReductionHTML}
           <div class="reno-stats">
             <div class="reno-stat"><div class="reno-stat-val">${savings} €</div><div class="reno-stat-lbl">économie/an</div></div>
             <div class="reno-stat"><div class="reno-stat-val">${invest} €</div><div class="reno-stat-lbl">investissement</div></div>
