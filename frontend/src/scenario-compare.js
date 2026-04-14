@@ -53,6 +53,10 @@ export function hasSavedScenarios() {
   return _scenarios.length > 0
 }
 
+export function getSavedScenarios() {
+  return _scenarios.map(s => ({ name: s.name, result: s.result, actions: s.actions }))
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function _render(container) {

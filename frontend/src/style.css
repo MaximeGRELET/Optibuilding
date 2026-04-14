@@ -1356,4 +1356,7 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .project-bar-btn:hover { border-color: var(--accent); color: var(--accent); }
 .project-bar-btn--pdf { color: var(--text); }
 .project-bar-btn--pdf:hover { background: #1a2a10; border-color: #4caf50; color: #4caf50; }
+.project-bar-btn--ppt { color: var(--text); }
+.project-bar-btn--ppt:hover { background: #1a1a35; border-color: #c0392b; color: #c0392b; }
+.project-bar-btn--ppt:disabled { opacity: .5; cursor: not-allowed; }
 

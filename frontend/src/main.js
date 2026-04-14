@@ -14,9 +14,11 @@ import {
 import { analyzeBuilding, analyzeRenovation, getToken, saveProject } from './api.js'
 import { showResults } from './results.js'
 import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
+import { getSavedScenarios } from './scenario-compare.js'
 import { mountAuthPage, isLoggedIn } from './auth.js'
 import { mountProjectsPage } from './projects.js'
 import { exportStudyPDF } from './pdf-export.js'
+import { exportStudyPPT } from './ppt-export.js'
 
 // ── View router ────────────────────────────────────────────────────────────────
 
@@ -196,7 +198,23 @@ document.getElementById('btn-back-projects')?.addEventListener('click', () => {
 
 document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
   const name = document.getElementById('project-name-label')?.textContent || 'Étude'
-  exportStudyPDF(name, _lastAnalysis, _lastRenovation)
+  exportStudyPDF(name, _lastAnalysis, _lastRenovation, getSavedScenarios())
+})
+
+document.getElementById('btn-export-ppt')?.addEventListener('click', async () => {
+  const btn  = document.getElementById('btn-export-ppt')
+  const name = document.getElementById('project-name-label')?.textContent || 'Étude'
+  btn.disabled = true
+  btn.textContent = '⏳ PPT…'
+  try {
+    await exportStudyPPT(name, _lastAnalysis, _lastRenovation, getSavedScenarios())
+  } catch (e) {
+    alert('Erreur export PPT : ' + e.message)
+    console.error(e)
+  } finally {
+    btn.disabled = false
+    btn.textContent = '⬇ PPT'
+  }
 })
 
 document.addEventListener('calibration:validated', () => unlockStep(3))
