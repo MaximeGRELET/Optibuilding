@@ -481,6 +481,34 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
   font-size: 12px; font-weight: 800; color: #000;
 }
 
+/* Heating reduction progress bar */
+.reno-heat-reduction {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px 4px; flex-wrap: wrap;
+}
+.reno-heat-bar-wrap {
+  flex: 1; min-width: 60px; height: 6px;
+  background: rgba(239,68,68,0.15); border-radius: 3px; overflow: hidden;
+}
+.reno-heat-bar {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, #ef4444, #f97316);
+  border-radius: 3px; transition: width .4s ease;
+}
+.reno-heat-pct {
+  font-size: 12px; font-weight: 700; color: #ef4444; white-space: nowrap;
+}
+.reno-heat-kwh {
+  font-size: 10px; color: var(--text-muted); white-space: nowrap;
+}
+
+/* EP before/after line */
+.reno-ep-line {
+  padding: 4px 12px 2px; font-size: 10px; color: var(--text-muted);
+}
+.reno-ep-line strong { color: var(--text); }
+.reno-ep-note { opacity: 0.6; margin-left: 4px; font-style: italic; }
+
 .reno-stats {
   display: grid; grid-template-columns: 1fr 1fr 1fr;
   gap: 4px; padding: 0 12px 10px;
@@ -1356,4 +1384,7 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .project-bar-btn:hover { border-color: var(--accent); color: var(--accent); }
 .project-bar-btn--pdf { color: var(--text); }
 .project-bar-btn--pdf:hover { background: #1a2a10; border-color: #4caf50; color: #4caf50; }
+.project-bar-btn--ppt { color: var(--text); }
+.project-bar-btn--ppt:hover { background: #1a1a35; border-color: #c0392b; color: #c0392b; }
+.project-bar-btn--ppt:disabled { opacity: .5; cursor: not-allowed; }
 

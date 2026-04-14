@@ -136,8 +136,8 @@ function _renderAnnualLoad(analysis) {
       datasets: [{
         label: 'Chauffe (kWh/j)',
         data: dailyKwh,
-        backgroundColor: 'rgba(79,128,255,0.6)',
-        borderColor: '#4f80ff',
+        backgroundColor: 'rgba(239,68,68,0.6)',
+        borderColor: '#ef4444',
         borderWidth: 0,
         borderRadius: 1,
       }],
@@ -172,7 +172,7 @@ function _renderMonthlyBar(analysis) {
     {
       label: 'Chauffage (kWh)',
       data: heating,
-      backgroundColor: 'rgba(79,128,255,0.7)',
+      backgroundColor: 'rgba(239,68,68,0.75)',   // rouge
       borderRadius: 3,
       order: 3,
     },
@@ -188,7 +188,7 @@ function _renderMonthlyBar(analysis) {
     datasets.splice(1, 0, {
       label: 'Refroidissement (kWh)',
       data: cooling,
-      backgroundColor: 'rgba(16,185,129,0.65)',
+      backgroundColor: 'rgba(59,130,246,0.65)',  // bleu
       borderRadius: 3,
       order: 2,
     })
