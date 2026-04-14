@@ -167,9 +167,10 @@ export function goToStep(n) {
     }
   })
 
-  // Widen right panel for steps 2 and 3
+  // Wide panel for steps 2 and 3; remove form-open when leaving step 1
   const rightPanel = document.getElementById('right-panel')
   rightPanel?.classList.toggle('wide', n > 1)
+  if (n !== 1) rightPanel?.classList.remove('form-open')
 }
 
 export function unlockStep(n) {
@@ -243,6 +244,7 @@ document.getElementById('btn-delete').addEventListener('click', () => {
   removeZone(selectedId)
   selectedId = null
   document.getElementById('zone-form').classList.add('hidden')
+  document.getElementById('right-panel')?.classList.remove('form-open')
   renderZoneList()
   _updateAnalyseBtn()
 })
@@ -431,6 +433,7 @@ export function selectZone(id) {
 
   const form = document.getElementById('zone-form')
   form?.classList.remove('hidden')
+  document.getElementById('right-panel')?.classList.add('form-open')
 
   const dot = document.getElementById('form-zone-dot')
   if (dot) { dot.style.background = zone.color }
