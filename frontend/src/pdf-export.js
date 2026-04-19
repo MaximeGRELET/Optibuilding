@@ -4,8 +4,8 @@
  * Color palette: Efficacity corporate identity.
  */
 
-export function exportStudyPDF(projectName, analysisResult, renovationResult, savedScenarios = []) {
-  const html = _buildReportHTML(projectName, analysisResult, renovationResult, savedScenarios)
+export function exportStudyPDF(projectName, analysisResult, renovationResult, savedScenarios = [], comboResults = []) {
+  const html = _buildReportHTML(projectName, analysisResult, renovationResult, savedScenarios, comboResults)
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url  = URL.createObjectURL(blob)
   const win  = window.open(url, '_blank')
@@ -15,7 +15,7 @@ export function exportStudyPDF(projectName, analysisResult, renovationResult, sa
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function _buildReportHTML(projectName, a, reno, savedScenarios) {
+function _buildReportHTML(projectName, a, reno, savedScenarios, comboResults) {
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
   const allScenarios = _collectScenarios(reno, savedScenarios)
 
@@ -128,6 +128,18 @@ function _buildReportHTML(projectName, a, reno, savedScenarios) {
   .info-block li { font-size: 8px; color: #4A5568; margin-bottom: 3px; list-style: none; padding-left: 10px; }
   .info-block li::before { content: '→'; margin-right: 5px; color: #008ECF; margin-left: -10px; }
 
+  /* ── Combo table ── */
+  .combo-table th { background: #00A896; }
+  .combo-rank { font-size: 14px; text-align: center; width: 28px; }
+  .combo-pills { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
+  .combo-pill { background: #EBF9F7; color: #007A6E; border-radius: 3px; padding: 2px 6px; font-size: 7px; font-weight: 600; }
+  .combo-dpe-arrow { font-size: 7.5px; color: #7A8499; }
+  .combo-dpe-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; font-size: 9px; font-weight: 800; }
+  .combo-gain-pos { color: #27AE60; font-weight: 700; }
+  .combo-gain-neg { color: #B30000; font-weight: 700; }
+  .combo-eff { color: #0158A5; font-weight: 700; }
+  .combo-info-row { background: #F0F9F8; border-left: 3px solid #00A896; padding: 8px 12px; margin: 12px 0; border-radius: 4px; font-size: 8.5px; color: #005A52; }
+
   /* ── Footer ── */
   .report-footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #E8EDF5; display: flex; justify-content: space-between; font-size: 7.5px; color: #A0AEC0; }
 
@@ -157,6 +169,8 @@ ${_monthlySection(a)}
 ${allScenarios.length ? `<div class="page-break"></div>${_scenariosSection(allScenarios)}` : ''}
 
 ${allScenarios.length > 1 ? `<div class="page-break"></div>${_comparisonSection(allScenarios)}` : ''}
+
+${comboResults?.length ? `<div class="page-break"></div>${_comboSection(comboResults)}` : ''}
 
 </body>
 </html>`
@@ -615,6 +629,81 @@ function _monthlyTable(values, rowLabel) {
       ${values.map(v => `<td>${v > 0 ? Math.round(v).toLocaleString('fr-FR') : '—'}</td>`).join('')}
     </tr></tbody>
   </table>`
+}
+
+function _comboSection(results) {
+  if (!results?.length) return ''
+  const top5   = results.slice(0, 5)
+  const total  = results.length
+  const best   = results[0]
+  const medals = ['🥇','🥈','🥉']
+
+  const rows = results.map((s, i) => {
+    const dpeAfter  = s.result?.after_dpe  ?? s.result?.after?.dpe_class  ?? '?'
+    const dpeBefore = s.result?.baseline_dpe ?? s.result?.baseline?.dpe_class ?? '?'
+    const dpeColor  = { A:'#00b050',B:'#92d050',C:'#c8e84d',D:'#ffbf00',E:'#ff9f00',F:'#ff6200',G:'#e02020' }[dpeAfter] ?? '#888'
+    const dpeText   = ['A','B','C'].includes(dpeAfter) ? '#333' : '#fff'
+    const deltaStr  = s.deltaKwh >= 0 ? `−${Math.round(s.deltaKwh).toLocaleString('fr-FR')} kWh` : `+${Math.abs(Math.round(s.deltaKwh)).toLocaleString('fr-FR')} kWh`
+    const pills = s.combo.map(item => {
+      const keyParams = item.action.params
+        .filter(p => ['range','select'].includes(p.type))
+        .map(p => {
+          const v = item.params[p.key]
+          if (p.type === 'select') return p.options?.find(o => o.value === v)?.label ?? v
+          return p.display ? p.display(v) : v
+        }).join(', ')
+      return `<span class="combo-pill">${item.action.icon} ${item.action.label}${keyParams ? ` — ${keyParams}` : ''}</span>`
+    }).join('')
+
+    return `<tr>
+      <td class="combo-rank">${medals[i] ?? (i + 1) + '.'}</td>
+      <td>
+        <div class="combo-pills">${pills}</div>
+        <div class="combo-dpe-arrow">${dpeBefore} → ${dpeAfter}</div>
+      </td>
+      <td style="text-align:right"><span class="${s.deltaKwh >= 0 ? 'combo-gain-pos' : 'combo-gain-neg'}">${deltaStr}</span></td>
+      <td style="text-align:right">${s.investKeur > 0 ? s.investKeur.toFixed(0) + ' k€' : '—'}</td>
+      <td style="text-align:right" class="combo-eff">${s.efficiency > 0 ? Math.round(s.efficiency).toLocaleString('fr-FR') : '—'} kWh/k€</td>
+      <td style="text-align:center"><span class="combo-dpe-badge" style="background:${dpeColor};color:${dpeText}">${dpeAfter}</span></td>
+    </tr>`
+  }).join('')
+
+  return `
+  <div class="section">
+    <div class="section-head" style="background:#00A896">
+      <h2>🔬 Analyse combinatoire</h2>
+      <p>${total} combinaisons d'actions simulées — classées par kWh économisé / k€ investi</p>
+    </div>
+
+    <div class="combo-info-row">
+      <strong>${total} scénarios</strong> générés et simulés automatiquement à partir du pool d'actions sélectionné.
+      Meilleur résultat : <strong>${best.name}</strong>
+      — gain de <strong>${Math.round(best.deltaKwh).toLocaleString('fr-FR')} kWh/an</strong>
+      pour <strong>${best.investKeur > 0 ? best.investKeur.toFixed(0) + ' k€' : 'coût non défini'}</strong>
+      (efficacité : <strong>${best.efficiency > 0 ? Math.round(best.efficiency).toLocaleString('fr-FR') : '—'} kWh/k€</strong>).
+    </div>
+
+    <table class="combo-table">
+      <thead>
+        <tr>
+          <th style="width:28px"></th>
+          <th>Actions incluses dans le scénario</th>
+          <th style="text-align:right">Gain chauffage</th>
+          <th style="text-align:right">Investissement</th>
+          <th style="text-align:right">Efficacité</th>
+          <th style="text-align:center">DPE</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    ${total > 5 ? `<p style="font-size:8px;color:#7A8499;margin-top:6px;font-style:italic">Affichage des ${total} scénarios simulés. Les 3 premiers sont mis en évidence.</p>` : ''}
+
+    <div class="report-footer">
+      <span>OptiBuilding — Analyse combinatoire</span>
+      <span>Efficacité = kWh de chauffage économisés / k€ investis (coût médian)</span>
+    </div>
+  </div>`
 }
 
 function _dpeBarHTML(current) {

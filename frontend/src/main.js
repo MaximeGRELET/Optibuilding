@@ -20,6 +20,7 @@ import { mountAuthPage } from './auth.js'
 import { mountProjectsPage } from './projects.js'
 import { exportStudyPDF } from './pdf-export.js'
 import { exportStudyPPT } from './ppt-export.js'
+import { getComboResults } from './combo-analysis.js'
 
 // ── View router ────────────────────────────────────────────────────────────────
 
@@ -267,7 +268,7 @@ document.getElementById('btn-back-projects')?.addEventListener('click', () => {
 
 document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
   const name = document.getElementById('project-name-label')?.textContent || 'Étude'
-  exportStudyPDF(name, _lastAnalysis, _lastRenovation, getSavedScenarios())
+  exportStudyPDF(name, _lastAnalysis, _lastRenovation, getSavedScenarios(), getComboResults())
 })
 
 document.getElementById('btn-export-ppt')?.addEventListener('click', async () => {
