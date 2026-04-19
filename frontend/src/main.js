@@ -200,24 +200,35 @@ map.addControl(draw)
 
 // ── Map style switcher ────────────────────────────────────────────────────────
 
+let _styleSwitching = false
+
 document.querySelectorAll('.mss-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (_styleSwitching) return
     const styleKey = btn.dataset.style
     if (!MAP_STYLES[styleKey]) return
 
-    // Save drawn features and current mode
-    const features = draw.getAll()
+    _styleSwitching = true
+
+    // Save features before style wipes the layers
+    let savedFeatures
+    try { savedFeatures = draw.getAll() } catch (_) { savedFeatures = null }
 
     // Swap active class
     document.querySelectorAll('.mss-btn').forEach(b => b.classList.remove('active'))
     btn.classList.add('active')
 
-    // Remove draw before style change (it re-attaches cleanly on addControl)
-    map.removeControl(draw)
+    // setStyle fires 'styledata' which MapboxDraw uses to re-add its own layers;
+    // we just need to restore the feature data afterwards.
     map.setStyle(MAP_STYLES[styleKey])
     map.once('style.load', () => {
-      map.addControl(draw)
-      if (features.features.length) draw.set(features)
+      try {
+        draw.deleteAll()
+        if (savedFeatures?.features?.length) draw.set(savedFeatures)
+      } catch (e) {
+        console.warn('Draw restore after style switch:', e)
+      }
+      _styleSwitching = false
     })
   })
 })
