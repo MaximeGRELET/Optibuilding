@@ -137,11 +137,48 @@ if (getToken()) {
   _bootAuth()
 }
 
+// ── Map styles ─────────────────────────────────────────────────────────────────
+
+const MAP_STYLES = {
+  voyager: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+  osm: {
+    version: 8,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxzoom: 19,
+      },
+    },
+    layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
+  },
+  ign: {
+    version: 8,
+    sources: {
+      ign: {
+        type: 'raster',
+        tiles: [
+          'https://wxs.ign.fr/cartes/geoportail/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0'
+          + '&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image%2Fpng'
+          + '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'
+          + '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+        ],
+        tileSize: 256,
+        attribution: '© <a href="https://www.geoportail.gouv.fr">IGN-France</a>',
+        maxzoom: 18,
+      },
+    },
+    layers: [{ id: 'ign-tiles', type: 'raster', source: 'ign' }],
+  },
+}
+
 // ── Map ────────────────────────────────────────────────────────────────────────
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  style: MAP_STYLES.voyager,
   center: [4.854, 45.756],
   zoom: 16,
 })
@@ -160,6 +197,30 @@ const draw = new MapboxDraw({
   styles: _drawStyles(),
 })
 map.addControl(draw)
+
+// ── Map style switcher ────────────────────────────────────────────────────────
+
+document.querySelectorAll('.mss-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const styleKey = btn.dataset.style
+    if (!MAP_STYLES[styleKey]) return
+
+    // Save drawn features and current mode
+    const features = draw.getAll()
+
+    // Swap active class
+    document.querySelectorAll('.mss-btn').forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+
+    // Remove draw before style change (it re-attaches cleanly on addControl)
+    map.removeControl(draw)
+    map.setStyle(MAP_STYLES[styleKey])
+    map.once('style.load', () => {
+      map.addControl(draw)
+      if (features.features.length) draw.set(features)
+    })
+  })
+})
 
 // ── State ──────────────────────────────────────────────────────────────────────
 

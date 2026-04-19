@@ -921,6 +921,43 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 /* Bouton carte : caché en step 1 */
 #btn-toggle-map { display: none; }
 
+/* ── Map style switcher ───────────────────────────────────────────────────── */
+#map-style-switcher {
+  margin-top: auto;
+  padding: 8px 8px 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mss-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+}
+.mss-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mss-btn {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all .15s;
+}
+.mss-btn:hover { border-color: var(--primary); color: var(--text); background: var(--bg-input); }
+.mss-btn.active { border-color: var(--primary); background: var(--accent-dim); color: var(--primary); font-weight: 700; }
+
 /* ── Building selector ────────────────────────────────────────────────────── */
 #building-selector {
   padding: 8px 8px 4px;
