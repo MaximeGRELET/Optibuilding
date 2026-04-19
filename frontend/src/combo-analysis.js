@@ -1,112 +1,15 @@
 /**
  * Analyse combinatoire des actions de rénovation.
- * Génère toutes les combinaisons valides d'un pool d'actions (max 1 par élément)
- * et les simule via POST /renovation/simulate.
+ * Réutilise ACTIONS_CATALOG (avec tous ses params : range, select, number).
+ * Règle d'exclusivité : max 1 action par `element` dans chaque combinaison.
  */
 
 import { simulateActions } from './api.js'
-
-// ── Catalogue des actions ─────────────────────────────────────────────────────
-// element : groupe d'exclusivité — une seule action par groupe dans chaque combo
-
-export const COMBO_CATALOG = [
-  {
-    id: 'insulate_walls',
-    element: 'envelope_walls',
-    label: 'Isolation murs',
-    icon: '🧱',
-    desc: 'ITE ou ITI — laine minérale',
-    actionId: 'insulate_walls',
-    defaultParams: { material_id: 'mineral_wool', thickness_m: 0.14, cost_min_eur: 10000, cost_max_eur: 20000 },
-    paramsUI: [
-      { key: 'thickness_m', label: 'Épaisseur', min: 0.06, max: 0.30, step: 0.02, fmt: v => parseFloat(v).toFixed(2) + ' m' },
-    ],
-  },
-  {
-    id: 'insulate_roof',
-    element: 'envelope_roof',
-    label: 'Isolation toiture',
-    icon: '🏠',
-    desc: 'Combles ou toiture-terrasse',
-    actionId: 'insulate_roof',
-    defaultParams: { material_id: 'mineral_wool', thickness_m: 0.25, cost_min_eur: 5000, cost_max_eur: 8000 },
-    paramsUI: [
-      { key: 'thickness_m', label: 'Épaisseur', min: 0.10, max: 0.40, step: 0.05, fmt: v => parseFloat(v).toFixed(2) + ' m' },
-    ],
-  },
-  {
-    id: 'insulate_floor',
-    element: 'envelope_floor',
-    label: 'Isolation plancher bas',
-    icon: '🔲',
-    desc: 'Sous dalle — EPS',
-    actionId: 'insulate_floor',
-    defaultParams: { material_id: 'eps_insulation', thickness_m: 0.10, cost_min_eur: 4000, cost_max_eur: 7000 },
-    paramsUI: [
-      { key: 'thickness_m', label: 'Épaisseur', min: 0.06, max: 0.20, step: 0.02, fmt: v => parseFloat(v).toFixed(2) + ' m' },
-    ],
-  },
-  {
-    id: 'replace_windows',
-    element: 'envelope_windows',
-    label: 'Remplacement vitrages',
-    icon: '🪟',
-    desc: 'Double ou triple vitrage',
-    actionId: 'replace_windows',
-    defaultParams: { new_uw_w_m2k: 1.3, g_value: 0.6, cost_min_eur: 8000, cost_max_eur: 15000 },
-    paramsUI: [
-      { key: 'new_uw_w_m2k', label: 'Uw cible', min: 0.6, max: 2.8, step: 0.1, fmt: v => parseFloat(v).toFixed(1) + ' W/m²K' },
-    ],
-  },
-  {
-    id: 'replace_heating_heatpump',
-    element: 'heating_system',
-    label: 'PAC air-eau',
-    icon: '♻️',
-    desc: 'Pompe à chaleur — COP 3.2',
-    actionId: 'replace_heating',
-    defaultParams: { system_type: 'heat_pump', efficiency: 3.2, cost_min_eur: 8000, cost_max_eur: 14000 },
-    paramsUI: [
-      { key: 'efficiency', label: 'COP nominal', min: 2.5, max: 4.5, step: 0.1, fmt: v => parseFloat(v).toFixed(1) },
-    ],
-  },
-  {
-    id: 'replace_heating_district',
-    element: 'heating_system',
-    label: 'Réseau de chaleur',
-    icon: '🌡️',
-    desc: 'Branchement réseau urbain — η 95%',
-    actionId: 'replace_heating',
-    defaultParams: { system_type: 'district_heating', efficiency: 0.95, cost_min_eur: 5000, cost_max_eur: 12000 },
-    paramsUI: [],
-  },
-  {
-    id: 'replace_heating_gas_cond',
-    element: 'heating_system',
-    label: 'Chaudière gaz condensation',
-    icon: '🔥',
-    desc: 'Remplacement chaudière — η 105%',
-    actionId: 'replace_heating',
-    defaultParams: { system_type: 'gas_boiler', efficiency: 1.05, cost_min_eur: 4000, cost_max_eur: 8000 },
-    paramsUI: [],
-  },
-  {
-    id: 'install_mvhr',
-    element: 'ventilation',
-    label: 'VMC double flux',
-    icon: '💨',
-    desc: 'Récupération de chaleur sur air extrait',
-    actionId: 'install_mvhr',
-    defaultParams: { heat_recovery_efficiency: 0.85, cost_min_eur: 3000, cost_max_eur: 5000 },
-    paramsUI: [
-      { key: 'heat_recovery_efficiency', label: 'Efficacité récup.', min: 0.70, max: 0.95, step: 0.05, fmt: v => Math.round(v * 100) + '%' },
-    ],
-  },
-]
+import { ACTIONS_CATALOG, defaultParams } from './actions-catalog.js'
 
 // ── État local ────────────────────────────────────────────────────────────────
 
-let _pool    = []   // [{ uid, cat, params }]
+let _pool    = []   // [{ uid, action (catalog entry), params }]
 let _results = []   // scénarios triés après simulation
 let _showAll = false
 
@@ -127,8 +30,8 @@ function _renderShell() {
     <div class="combo-add-row">
       <select id="combo-action-select" class="combo-select">
         <option value="">+ Ajouter une action au pool…</option>
-        ${COMBO_CATALOG.map(c =>
-          `<option value="${c.id}">${c.icon} ${c.label}</option>`
+        ${ACTIONS_CATALOG.map(a =>
+          `<option value="${a.id}">${a.icon} ${a.label}</option>`
         ).join('')}
       </select>
     </div>
@@ -150,9 +53,9 @@ function _bindEvents(container, ctx) {
     const id = e.target.value
     if (!id) return
     e.target.value = ''
-    const cat = COMBO_CATALOG.find(c => c.id === id)
-    if (!cat) return
-    _pool.push({ uid: crypto.randomUUID(), cat, params: { ...cat.defaultParams } })
+    const action = ACTIONS_CATALOG.find(a => a.id === id)
+    if (!action) return
+    _pool.push({ uid: crypto.randomUUID(), action, params: defaultParams(action) })
     _renderPool(container)
     _updateInfo(container)
   })
@@ -175,18 +78,30 @@ function _bindEvents(container, ctx) {
     }
   })
 
+  // Sliders (range)
   container.addEventListener('input', e => {
-    const slider = e.target.closest('[data-combo-slider]')
-    if (!slider) return
-    const { uid, key } = JSON.parse(slider.dataset.comboSlider)
+    const ctrl = e.target.closest('[data-combo-ctrl]')
+    if (!ctrl) return
+    const { uid, key } = JSON.parse(ctrl.dataset.comboCtrl)
     const item = _pool.find(p => p.uid === uid)
     if (!item) return
-    item.params[key] = parseFloat(slider.value)
-    const valEl = container.querySelector(`[data-combo-val="${uid}:${key}"]`)
-    if (valEl) {
-      const pDef = item.cat.paramsUI.find(p => p.key === key)
-      valEl.textContent = pDef?.fmt ? pDef.fmt(slider.value) : slider.value
+    const val = ctrl.type === 'range' ? parseFloat(ctrl.value) : ctrl.value
+    item.params[key] = ctrl.type === 'number' ? parseFloat(ctrl.value) : val
+    // Update display label for range inputs
+    if (ctrl.type === 'range') {
+      const paramDef = item.action.params.find(p => p.key === key)
+      const valEl = container.querySelector(`[data-combo-val="${uid}:${key}"]`)
+      if (valEl && paramDef?.display) valEl.textContent = paramDef.display(parseFloat(ctrl.value))
     }
+  })
+
+  // Selects (change)
+  container.addEventListener('change', e => {
+    const ctrl = e.target.closest('[data-combo-ctrl]')
+    if (!ctrl || ctrl.tagName !== 'SELECT') return
+    const { uid, key } = JSON.parse(ctrl.dataset.comboCtrl)
+    const item = _pool.find(p => p.uid === uid)
+    if (item) item.params[key] = ctrl.value
   })
 }
 
@@ -199,41 +114,68 @@ function _renderPool(container) {
     return
   }
 
-  // Show element groups with their counts
-  const groups = {}
+  const groupCounts = {}
   _pool.forEach(item => {
-    if (!groups[item.cat.element]) groups[item.cat.element] = []
-    groups[item.cat.element].push(item)
+    groupCounts[item.action.element] = (groupCounts[item.action.element] ?? 0) + 1
   })
 
-  el.innerHTML = _pool.map(item => {
-    const groupCount = groups[item.cat.element].length
-    const multiLabel = groupCount > 1 ? `<span class="combo-pool-exclusive-badge" title="Actions alternatives sur le même élément">⚡ ${groupCount} alternatives</span>` : ''
-    const sliders = item.cat.paramsUI.map(p => {
-      const val = item.params[p.key] ?? p.min
-      return `
-        <div class="combo-param-row">
-          <span class="combo-param-label">${p.label}</span>
-          <input type="range" class="combo-param-slider"
-            data-combo-slider='${JSON.stringify({ uid: item.uid, key: p.key })}'
-            min="${p.min}" max="${p.max}" step="${p.step}" value="${val}" />
-          <span class="combo-param-val" data-combo-val="${item.uid}:${p.key}">${p.fmt ? p.fmt(val) : val}</span>
-        </div>`
-    }).join('')
+  el.innerHTML = _pool.map(item => _renderPoolItem(item, groupCounts[item.action.element])).join('')
+}
 
-    return `
-      <div class="combo-pool-item">
-        <div class="combo-pool-item-head">
-          <span class="combo-pool-icon">${item.cat.icon}</span>
-          <div class="combo-pool-info">
-            <span class="combo-pool-label">${item.cat.label} ${multiLabel}</span>
-            <span class="combo-pool-desc">${item.cat.desc}</span>
-          </div>
-          <button class="combo-pool-remove" data-combo-remove="${item.uid}" title="Retirer du pool">✕</button>
-        </div>
-        ${sliders ? `<div class="combo-pool-params">${sliders}</div>` : ''}
-      </div>`
+function _renderPoolItem({ uid, action, params }, groupCount) {
+  const altBadge = groupCount > 1
+    ? `<span class="combo-pool-exclusive-badge" title="Actions alternatives — une seule sera choisie par combo">⚡ ${groupCount} alternatives</span>`
+    : ''
+
+  const controls = action.params.map(p => {
+    const val = params[p.key] ?? p.default
+    const ctrl = _renderControl(uid, p, val)
+    return `<div class="combo-param-row">${ctrl}</div>`
   }).join('')
+
+  return `
+    <div class="combo-pool-item">
+      <div class="combo-pool-item-head">
+        <span class="combo-pool-icon">${action.icon}</span>
+        <div class="combo-pool-info">
+          <span class="combo-pool-label">${action.label} ${altBadge}</span>
+          <span class="combo-pool-desc">${action.description}</span>
+        </div>
+        <button class="combo-pool-remove" data-combo-remove="${uid}" title="Retirer du pool">✕</button>
+      </div>
+      <div class="combo-pool-params">${controls}</div>
+    </div>`
+}
+
+function _renderControl(uid, p, val) {
+  const attr = `data-combo-ctrl='${JSON.stringify({ uid, key: p.key })}'`
+
+  if (p.type === 'range') {
+    const display = p.display ? p.display(val) : val
+    return `
+      <span class="combo-param-label">${p.label}</span>
+      <input type="range" class="combo-param-slider" ${attr}
+        min="${p.min}" max="${p.max}" step="${p.step}" value="${val}" />
+      <span class="combo-param-val" data-combo-val="${uid}:${p.key}">${display}</span>`
+  }
+
+  if (p.type === 'select') {
+    const opts = p.options.map(o =>
+      `<option value="${o.value}" ${o.value === val ? 'selected' : ''}>${o.label}</option>`
+    ).join('')
+    return `
+      <span class="combo-param-label">${p.label}</span>
+      <select class="combo-param-select" ${attr}>${opts}</select>`
+  }
+
+  if (p.type === 'number') {
+    return `
+      <span class="combo-param-label">${p.label}</span>
+      <input type="number" class="combo-param-number" ${attr}
+        min="${p.min ?? 0}" step="${p.step ?? 1}" value="${val}" />`
+  }
+
+  return ''
 }
 
 // ── Combinaisons ──────────────────────────────────────────────────────────────
@@ -241,14 +183,13 @@ function _renderPool(container) {
 function _generateCombinations() {
   const groups = {}
   for (const item of _pool) {
-    if (!groups[item.cat.element]) groups[item.cat.element] = []
-    groups[item.cat.element].push(item)
+    const key = item.action.element ?? item.action.id
+    if (!groups[key]) groups[key] = []
+    groups[key].push(item)
   }
 
-  // Pour chaque groupe : [null = ne pas appliquer, item1, item2, ...]
   const groupOptions = Object.values(groups).map(g => [null, ...g])
 
-  // Produit cartésien
   const combos = groupOptions.reduce(
     (acc, opts) => acc.flatMap(combo => opts.map(opt => [...combo, opt])),
     [[]]
@@ -269,13 +210,13 @@ function _updateInfo(container) {
     return
   }
 
-  const n = _generateCombinations().length
+  const n    = _generateCombinations().length
   const warn = n > 100
 
   infoEl.classList.remove('hidden')
   infoEl.className = `combo-info${warn ? ' combo-info--warn' : ''}`
   infoEl.innerHTML = warn
-    ? `⚠️ <strong>${n} combinaisons</strong> générées — simulation longue. Réduisez le pool ou procédez.`
+    ? `⚠️ <strong>${n} combinaisons</strong> générées — simulation longue. Réduisez le pool ou procédez quand même.`
     : `<strong>${n} combinaison${n > 1 ? 's' : ''}</strong> valide${n > 1 ? 's' : ''} à simuler.`
 
   btnEl.classList.remove('hidden')
@@ -287,11 +228,11 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
   const combos = _generateCombinations()
   if (!combos.length) return
 
-  const btn          = container.querySelector('#combo-simulate-btn')
-  const progressEl   = container.querySelector('#combo-progress')
-  const progressBar  = container.querySelector('#combo-progress-bar')
-  const progressLbl  = container.querySelector('#combo-progress-label')
-  const resultsEl    = container.querySelector('#combo-results')
+  const btn         = container.querySelector('#combo-simulate-btn')
+  const progressEl  = container.querySelector('#combo-progress')
+  const progressBar = container.querySelector('#combo-progress-bar')
+  const progressLbl = container.querySelector('#combo-progress-label')
+  const resultsEl   = container.querySelector('#combo-results')
 
   btn.disabled = true
   progressEl.classList.remove('hidden')
@@ -311,12 +252,12 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
 
     try {
       const actions = combo.map(item => ({
-        action_id: item.cat.actionId,
-        params:    item.params,
+        action_id: item.action.id,
+        params:    { ...item.params },
       }))
       const result = await simulateActions(geojson, actions, method, stationId, calibration)
 
-      const deltaKwh  = (result.baseline?.heating_need_kwh ?? 0) - (result.after?.heating_need_kwh ?? 0)
+      const deltaKwh   = (result.baseline?.heating_need_kwh ?? 0) - (result.after?.heating_need_kwh ?? 0)
       const investKeur = (result.investment_center_eur ?? ((result.after?.cost_min_eur ?? 0) + (result.after?.cost_max_eur ?? 0)) / 2) / 1000
       const efficiency = investKeur > 0 ? deltaKwh / investKeur : 0
 
@@ -341,7 +282,14 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
 }
 
 function _comboName(combo) {
-  return combo.map(item => item.cat.label).join(' + ')
+  return combo.map(item => {
+    const sysParam = item.action.params.find(p => p.key === 'system_type')
+    if (sysParam) {
+      const opt = sysParam.options?.find(o => o.value === item.params.system_type)
+      return opt ? opt.label : item.action.label
+    }
+    return item.action.label
+  }).join(' + ')
 }
 
 // ── Résultats ─────────────────────────────────────────────────────────────────
@@ -350,7 +298,7 @@ function _renderResults(container) {
   const el = container.querySelector('#combo-results')
   if (!_results.length) { el.classList.add('hidden'); return }
 
-  const shown  = _showAll ? _results : _results.slice(0, 5)
+  const shown   = _showAll ? _results : _results.slice(0, 5)
   const hasMore = !_showAll && _results.length > 5
 
   el.classList.remove('hidden')
@@ -364,16 +312,14 @@ function _renderResults(container) {
         <thead>
           <tr>
             <th></th>
-            <th>Scénario & actions</th>
+            <th>Scénario & actions détaillées</th>
             <th class="crt-r">Gain chauffage</th>
             <th class="crt-r">Investissement</th>
             <th class="crt-r">Efficacité</th>
             <th class="crt-r">DPE</th>
           </tr>
         </thead>
-        <tbody>
-          ${shown.map((s, i) => _renderRow(s, i)).join('')}
-        </tbody>
+        <tbody>${shown.map((s, i) => _renderRow(s, i)).join('')}</tbody>
       </table>
     </div>
     ${hasMore
@@ -383,42 +329,46 @@ function _renderResults(container) {
 }
 
 const _DPE_COLORS = {
-  A: '#00b050', B: '#92d050', C: '#ffff00',
+  A: '#00b050', B: '#92d050', C: '#c8e84d',
   D: '#ffbf00', E: '#ff9f00', F: '#ff6200', G: '#e02020',
 }
 
 function _renderRow(s, rank) {
-  const medal   = ['🥇', '🥈', '🥉'][rank] ?? `${rank + 1}.`
-  const dpeAfter = s.result.after_dpe ?? s.result.after?.dpe_class ?? '?'
+  const medal     = ['🥇', '🥈', '🥉'][rank] ?? `${rank + 1}.`
+  const dpeAfter  = s.result.after_dpe  ?? s.result.after?.dpe_class  ?? '?'
   const dpeBefore = s.result.baseline_dpe ?? s.result.baseline?.dpe_class ?? '?'
-  const dpeColor = _DPE_COLORS[dpeAfter] ?? '#888'
+  const dpeColor  = _DPE_COLORS[dpeAfter] ?? '#888'
+  const dpeText   = ['A','B','C'].includes(dpeAfter) ? '#333' : '#fff'
 
-  const actionsDetail = s.combo.map(item => {
-    const paramStr = item.cat.paramsUI.map(p => {
-      const v = item.params[p.key]
-      return p.fmt ? p.fmt(v) : v
-    }).join(', ')
-    return `<span class="crt-action-pill">${item.cat.icon} ${item.cat.label}${paramStr ? ` — ${paramStr}` : ''}</span>`
+  // Detail pills: action label + key param values
+  const pills = s.combo.map(item => {
+    const keyParams = item.action.params
+      .filter(p => ['range', 'select'].includes(p.type))
+      .map(p => {
+        const v = item.params[p.key]
+        if (p.type === 'select') {
+          return p.options?.find(o => o.value === v)?.label ?? v
+        }
+        return p.display ? p.display(v) : v
+      }).join(', ')
+    return `<span class="crt-action-pill">${item.action.icon} ${item.action.label}${keyParams ? ` — ${keyParams}` : ''}</span>`
   }).join('')
 
-  const costStr    = s.investKeur > 0 ? `${s.investKeur.toFixed(0)} k€` : '—'
-  const effStr     = s.efficiency > 0 ? `${Math.round(s.efficiency).toLocaleString('fr')} kWh/k€` : '—'
-  const deltaStr   = s.deltaKwh > 0
+  const deltaStr = s.deltaKwh >= 0
     ? `−${Math.round(s.deltaKwh).toLocaleString('fr')} kWh`
     : `+${Math.abs(Math.round(s.deltaKwh)).toLocaleString('fr')} kWh`
-  const deltaCls   = s.deltaKwh > 0 ? 'crt-gain--pos' : 'crt-gain--neg'
 
   return `
     <tr class="crt-row${rank < 3 ? ' crt-row--podium' : ''}">
       <td class="crt-rank">${medal}</td>
       <td class="crt-name">
-        <div class="crt-actions-detail">${actionsDetail}</div>
+        <div class="crt-actions-detail">${pills}</div>
         <div class="crt-dpe-arrow">${dpeBefore} → ${dpeAfter}</div>
       </td>
-      <td class="crt-r"><span class="${deltaCls}">${deltaStr}</span></td>
-      <td class="crt-r">${costStr}</td>
-      <td class="crt-r crt-efficiency">${effStr}</td>
-      <td class="crt-r"><span class="crt-dpe-badge" style="background:${dpeColor};color:${dpeAfter === 'C' ? '#333' : '#fff'}">${dpeAfter}</span></td>
+      <td class="crt-r"><span class="${s.deltaKwh >= 0 ? 'crt-gain--pos' : 'crt-gain--neg'}">${deltaStr}</span></td>
+      <td class="crt-r">${s.investKeur > 0 ? s.investKeur.toFixed(0) + ' k€' : '—'}</td>
+      <td class="crt-r crt-efficiency">${s.efficiency > 0 ? Math.round(s.efficiency).toLocaleString('fr') + ' kWh/k€' : '—'}</td>
+      <td class="crt-r"><span class="crt-dpe-badge" style="background:${dpeColor};color:${dpeText}">${dpeAfter}</span></td>
     </tr>`
 }
 

@@ -1575,9 +1575,21 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 
 .combo-pool-params { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 5px; }
 .combo-param-row { display: flex; align-items: center; gap: 8px; }
-.combo-param-label { font-size: 10px; color: var(--text-muted); width: 90px; flex-shrink: 0; }
+.combo-param-label { font-size: 10px; color: var(--text-muted); width: 110px; flex-shrink: 0; }
 .combo-param-slider { flex: 1; accent-color: var(--primary); cursor: pointer; height: 3px; }
-.combo-param-val { font-size: 10px; font-weight: 600; color: var(--primary); width: 70px; text-align: right; flex-shrink: 0; }
+.combo-param-val { font-size: 10px; font-weight: 600; color: var(--primary); width: 80px; text-align: right; flex-shrink: 0; }
+.combo-param-select {
+  flex: 1; padding: 3px 6px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--bg-input);
+  color: var(--text); font-size: 11px; outline: none; cursor: pointer;
+}
+.combo-param-select:focus { border-color: var(--primary); }
+.combo-param-number {
+  width: 80px; padding: 3px 6px; border-radius: 5px;
+  border: 1px solid var(--border); background: var(--bg-input);
+  color: var(--text); font-size: 11px; outline: none; text-align: right;
+}
+.combo-param-number:focus { border-color: var(--primary); }
 
 .combo-info {
   padding: 8px 10px; border-radius: var(--radius); font-size: 11px;

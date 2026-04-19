@@ -6,6 +6,7 @@
 export const ACTIONS_CATALOG = [
   {
     id: 'insulate_walls',
+    element: 'envelope_walls',
     label: 'Isolation des murs',
     icon: '🧱',
     description: 'ITE (par l\'extérieur) ou ITI (par l\'intérieur)',
@@ -38,6 +39,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'insulate_roof',
+    element: 'envelope_roof',
     label: 'Isolation toiture',
     icon: '🏠',
     description: 'Isolation des combles ou toiture-terrasse',
@@ -70,6 +72,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'insulate_floor',
+    element: 'envelope_floor',
     label: 'Isolation plancher bas',
     icon: '⬛',
     description: 'Isolation sous dalle ou vide sanitaire',
@@ -100,6 +103,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'replace_windows',
+    element: 'envelope_windows',
     label: 'Remplacement vitrages',
     icon: '🪟',
     description: 'Double ou triple vitrage argon, menuiseries PVC/alu',
@@ -126,6 +130,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'replace_heating',
+    element: 'heating_system',
     label: 'Système de chauffage',
     icon: '🔥',
     description: 'Remplacement de la chaudière ou de l\'émetteur',
@@ -156,6 +161,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'install_mvhr',
+    element: 'ventilation',
     label: 'VMC double flux',
     icon: '💨',
     description: 'Ventilation mécanique avec récupération de chaleur',
@@ -177,6 +183,7 @@ export const ACTIONS_CATALOG = [
   },
   {
     id: 'install_cooling',
+    element: 'cooling_system',
     label: 'Système de climatisation',
     icon: '🌬️',
     description: 'Installation d\'un système de refroidissement actif',
