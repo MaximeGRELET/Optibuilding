@@ -2,6 +2,7 @@
 
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
 import { simulateActions, analyzeRenovation } from './api.js'
+import { mountComboAnalysis } from './combo-analysis.js'
 import { renderHourlyCharts, renderMonthlyChart, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
 import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
@@ -92,8 +93,10 @@ function _renderCalibrationPanel(geojson) {
       document.getElementById('actions-section')?.classList.remove('hidden')
       document.getElementById('renovation-section')?.classList.remove('hidden')
       document.getElementById('compare-section')?.classList.remove('hidden')
+      document.getElementById('combo-section')?.classList.remove('hidden')
       _renderActionsPanel()
       _renderComparePanel()
+      _renderComboPanel()
       document.dispatchEvent(new CustomEvent('calibration:validated'))
 
       try {
@@ -141,6 +144,17 @@ function _renderComparePanel() {
   const mount = document.getElementById('compare-panel-mount')
   if (!mount) return
   mountComparePanel(mount)
+}
+
+function _renderComboPanel() {
+  const mount = document.getElementById('combo-panel-mount')
+  if (!mount) return
+  mountComboAnalysis(mount, {
+    getGeoJSON:     () => _currentGeojson,
+    getStationId:   () => _currentStationId,
+    getCalibration: () => _currentCalibration,
+    getMethod:      () => 'monthly',
+  })
 }
 
 // ── DPE ───────────────────────────────────────────────────────────────────────

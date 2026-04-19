@@ -1539,6 +1539,117 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .modal-confirm:hover { opacity: .85; }
 .modal-confirm:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ── Analyse combinatoire ─────────────────────────────────────────────────── */
+.combo-add-row { margin-bottom: 6px; }
+.combo-select {
+  width: 100%; padding: 7px 10px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg-input);
+  color: var(--text); font-size: 12px; outline: none; cursor: pointer;
+}
+.combo-select:focus { border-color: var(--primary); }
+
+.combo-pool { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.combo-empty { font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px 0; }
+
+.combo-pool-item {
+  border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--bg-card); overflow: hidden;
+}
+.combo-pool-item-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+}
+.combo-pool-icon { font-size: 16px; flex-shrink: 0; }
+.combo-pool-info { flex: 1; min-width: 0; }
+.combo-pool-label { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.combo-pool-desc { font-size: 10px; color: var(--text-muted); }
+.combo-pool-remove {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 12px; padding: 3px 6px; border-radius: 4px; transition: color .15s, background .15s;
+  flex-shrink: 0;
+}
+.combo-pool-remove:hover { color: var(--danger); background: rgba(179,0,0,0.08); }
+.combo-pool-exclusive-badge {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  background: rgba(0,168,150,0.12); color: var(--teal); font-weight: 600;
+}
+
+.combo-pool-params { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 5px; }
+.combo-param-row { display: flex; align-items: center; gap: 8px; }
+.combo-param-label { font-size: 10px; color: var(--text-muted); width: 90px; flex-shrink: 0; }
+.combo-param-slider { flex: 1; accent-color: var(--primary); cursor: pointer; height: 3px; }
+.combo-param-val { font-size: 10px; font-weight: 600; color: var(--primary); width: 70px; text-align: right; flex-shrink: 0; }
+
+.combo-info {
+  padding: 8px 10px; border-radius: var(--radius); font-size: 11px;
+  background: rgba(1,88,165,0.07); border: 1px solid rgba(1,88,165,0.15);
+  color: var(--primary); margin-bottom: 8px;
+}
+.combo-info--warn {
+  background: rgba(255,159,0,0.09); border-color: rgba(255,159,0,0.25);
+  color: #b86000;
+}
+
+/* Progress bar */
+.combo-progress { margin-bottom: 8px; }
+.combo-progress-bar-wrap {
+  height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; margin-bottom: 5px;
+}
+.combo-progress-bar {
+  height: 100%; background: linear-gradient(90deg, var(--primary), var(--teal));
+  border-radius: 3px; transition: width .3s ease;
+}
+.combo-progress-label { font-size: 10px; color: var(--text-muted); }
+
+/* Results */
+.combo-results { margin-top: 4px; }
+.combo-results-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px; gap: 8px;
+}
+.combo-results-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.combo-results-hint { font-size: 10px; color: var(--text-muted); }
+
+.combo-results-table-wrap {
+  overflow-x: auto; border-radius: var(--radius);
+  border: 1px solid var(--border); margin-bottom: 6px;
+}
+.combo-results-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.combo-results-table thead tr { background: var(--bg); }
+.combo-results-table th {
+  padding: 6px 8px; text-align: left; font-size: 9px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.crt-r { text-align: right !important; }
+.combo-results-table td { padding: 7px 8px; border-top: 1px solid var(--border); vertical-align: middle; }
+.crt-row--podium td { background: rgba(1,88,165,0.03); }
+.crt-row:hover td { background: var(--bg-input); }
+
+.crt-rank { font-size: 14px; width: 28px; text-align: center; }
+.crt-name { max-width: 220px; }
+.crt-actions-detail { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
+.crt-action-pill {
+  font-size: 9px; padding: 2px 6px; border-radius: 3px;
+  background: var(--accent-dim); color: var(--primary); font-weight: 500;
+}
+.crt-dpe-arrow { font-size: 10px; color: var(--text-muted); }
+.crt-efficiency { font-weight: 700; color: var(--primary); }
+.crt-gain--pos { color: var(--green); font-weight: 600; }
+.crt-gain--neg { color: var(--danger); font-weight: 600; }
+.crt-dpe-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 5px;
+  font-size: 11px; font-weight: 800;
+}
+
+.combo-show-all-btn {
+  width: 100%; padding: 7px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--primary); font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.combo-show-all-btn:hover { border-color: var(--primary); background: var(--accent-dim); }
+
 /* ── Project bar (in left panel) ─────────────────────────────────────────── */
 .project-bar {
   display: flex; flex-direction: column; gap: 4px;
