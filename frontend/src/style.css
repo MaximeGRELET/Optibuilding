@@ -878,6 +878,47 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
   transition: width .25s ease, min-width .25s ease;
 }
 
+/* ── Analysis mode : carte cachée, panel plein écran ──────────────────────── */
+#app.analysis-mode #map { display: none; }
+#app.analysis-mode #right-panel {
+  flex: 1;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none;
+}
+
+/* Minimap toggle button (visible en analysis-mode) */
+#btn-toggle-map {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+#btn-toggle-map:hover { border-color: var(--primary); color: var(--text); }
+#app.analysis-mode #btn-toggle-map { display: flex; }
+
+/* Map en overlay quand réactivée depuis analysis-mode */
+#app.analysis-mode.map-visible #map {
+  display: block;
+  position: fixed;
+  top: 0; left: var(--left-w);
+  width: 380px;
+  height: 300px;
+  z-index: 100;
+  border: 2px solid var(--primary);
+  border-radius: 0 0 var(--radius) 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
 /* ── Building selector ────────────────────────────────────────────────────── */
 #building-selector {
   padding: 8px 8px 4px;
@@ -1178,6 +1219,46 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 }
 .toggle-switch input:checked + .toggle-knob { background: var(--accent); }
 .toggle-switch input:checked + .toggle-knob::after { transform: translateX(14px); }
+
+/* ── Zone form — paramètres avancés ──────────────────────────────────────── */
+.zadvanced {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.zadvanced-toggle {
+  padding: 7px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  background: var(--bg-card);
+  transition: color .15s;
+  user-select: none;
+}
+.zadvanced-toggle:hover { color: var(--text); }
+.zadvanced[open] .zadvanced-toggle { color: var(--secondary); border-bottom: 1px solid var(--border); }
+.zadvanced-body {
+  padding: 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg);
+}
+
+/* U-values mini grid */
+.ugrid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+.ugrid label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.ugrid .zinput { padding: 4px 6px; font-size: 11px; }
+.uunit { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 
 /* Renovation cooling delta */
 .reno-cooling-delta {

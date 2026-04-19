@@ -122,7 +122,7 @@ export function updateZoneProps(id, formValues) {
   const zone = getActiveBuilding()?.zones.get(id)
   if (!zone) return
   zone.label = formValues.label || zone.label
-  Object.assign(zone.properties, {
+  const props = {
     zone_type:          formValues.type,
     height_m:           parseFloat(formValues.height),
     floors:             Math.max(1, parseInt(formValues.floors) || 1),
@@ -135,7 +135,19 @@ export function updateZoneProps(id, formValues) {
     has_cooling:         formValues.has_cooling === true || formValues.has_cooling === 'true',
     heating_setpoint_c:  parseFloat(formValues.heating_setpoint_c) || 19.0,
     cooling_setpoint_c:  parseFloat(formValues.cooling_setpoint_c) || 26.0,
-  })
+    ventilation_ach:     parseFloat(formValues.ventilation_ach) || 0.5,
+    internal_gains_w_m2: parseFloat(formValues.internal_gains_w_m2) || 5.0,
+  }
+  // U-values overrides (only if user filled them)
+  const uWalls   = parseFloat(formValues.u_walls)
+  const uRoof    = parseFloat(formValues.u_roof)
+  const uFloor   = parseFloat(formValues.u_floor)
+  const uWindows = parseFloat(formValues.u_windows)
+  if (!isNaN(uWalls))   props.u_walls_override   = uWalls
+  if (!isNaN(uRoof))    props.u_roof_override    = uRoof
+  if (!isNaN(uFloor))   props.u_floor_override   = uFloor
+  if (!isNaN(uWindows)) props.u_windows_override = uWindows
+  Object.assign(zone.properties, props)
 }
 
 // Also update stored geometry when draw modifies a polygon
@@ -181,6 +193,74 @@ export function getMaxStep() {
   return getActiveBuilding()?.maxReachedStep ?? 1
 }
 
+// ── Snapshot save / restore ───────────────────────────────────────────────────
+
+/** Full serialisable snapshot of all buildings (zones + results). */
+export function snapshotBuildings() {
+  const buildings = []
+  for (const b of _buildings.values()) {
+    buildings.push({
+      id:           b.id,
+      name:         b.name,
+      color:        b.color,
+      zonePalette:  b.zonePalette,
+      colorIndex:   b.colorIndex,
+      stationId:    b.stationId,
+      maxReachedStep: b.maxReachedStep,
+      calibration:  b.calibration,
+      zones: Array.from(b.zones.values()).map(z => ({ ...z })),
+    })
+  }
+  return {
+    _type: 'optibuilding_snapshot_v1',
+    activeBuildingId: _activeBuildingId,
+    nextId: _nextId,
+    buildings,
+  }
+}
+
+/** Reset all state then restore from a snapshot. Returns list of restored zones (for draw). */
+export function restoreSnapshot(snapshot) {
+  _buildings.clear()
+  _activeBuildingId = null
+
+  if (!snapshot?.buildings?.length) return []
+
+  for (const data of snapshot.buildings) {
+    const b = {
+      id:            data.id,
+      name:          data.name,
+      color:         data.color,
+      zonePalette:   data.zonePalette || ZONE_PALETTES[0],
+      colorIndex:    data.colorIndex  || 0,
+      stationId:     data.stationId   || null,
+      maxReachedStep: data.maxReachedStep || 1,
+      calibration:   data.calibration || {},
+      renovation:    null,
+      savedScenarios: [],
+      zones: new Map(),
+    }
+    for (const z of (data.zones || [])) {
+      b.zones.set(z.id, z)
+    }
+    _buildings.set(b.id, b)
+  }
+
+  _activeBuildingId = snapshot.activeBuildingId || _buildings.keys().next().value
+  _nextId = snapshot.nextId || (_buildings.size + 1)
+
+  // Return all zone features of active building (for re-adding to draw)
+  const active = _buildings.get(_activeBuildingId)
+  return active ? Array.from(active.zones.values()) : []
+}
+
+/** Reset everything (used before opening a project). */
+export function resetAllBuildings() {
+  _buildings.clear()
+  _activeBuildingId = null
+  _nextId = 1
+}
+
 // ── GeoJSON builder ───────────────────────────────────────────────────────────
 
 export function buildGeoJSON() {
@@ -208,8 +288,10 @@ export function buildGeoJSON() {
         cooling_system_type: p.cooling_system_type || 'split_ac',
         thermal_mass_class:  _massFromYear(p.construction_year),
         infiltration_ach:    _infiltrationFromLevel(p.infiltration_level, p.construction_year),
+        ventilation_ach:     p.ventilation_ach ?? 0.5,
+        internal_gains_w_m2: p.internal_gains_w_m2 ?? 5.0,
         energy_systems:      _buildEnergySystems(p),
-        envelope:           _envelopeFromYear(p.construction_year),
+        envelope:           _envelopeWithOverrides(p),
       },
     }
   })
@@ -302,6 +384,15 @@ function _buildEnergySystems(p) {
     systems.push({ system_id: coolType, ...cool })
   }
   return systems
+}
+
+function _envelopeWithOverrides(p) {
+  const base = _envelopeFromYear(p.construction_year)
+  if (p.u_walls_override != null)   base.walls.u_override   = p.u_walls_override
+  if (p.u_roof_override != null)    base.roof.u_override    = p.u_roof_override
+  if (p.u_floor_override != null)   base.ground_floor.u_override = p.u_floor_override
+  if (p.u_windows_override != null) base.windows.u_value_w_m2k  = p.u_windows_override
+  return base
 }
 
 function _envelopeFromYear(year) {

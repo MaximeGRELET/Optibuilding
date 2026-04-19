@@ -298,6 +298,54 @@
                 </div>
               </div>
 
+              <!-- Paramètres avancés -->
+              <div class="zfield zfield--full">
+                <details class="zadvanced">
+                  <summary class="zadvanced-toggle">⚙ Paramètres avancés (calibration)</summary>
+                  <div class="zadvanced-body">
+
+                    <div class="zfield zfield-row">
+                      <label class="zfield-label">VMC / ventilation</label>
+                      <div class="stepper">
+                        <button type="button" id="btn-vent-minus" class="stepper-btn">−</button>
+                        <input type="number" id="f-ventilation-ach" class="stepper-val" value="0.5" min="0" max="3" step="0.05" style="width:60px"/>
+                        <span class="stepper-unit">vol/h</span>
+                        <button type="button" id="btn-vent-plus" class="stepper-btn">+</button>
+                      </div>
+                    </div>
+
+                    <div class="zfield zfield-row">
+                      <label class="zfield-label">Apports internes</label>
+                      <div class="stepper">
+                        <button type="button" id="btn-gains-minus" class="stepper-btn">−</button>
+                        <input type="number" id="f-internal-gains" class="stepper-val" value="5" min="0" max="20" step="0.5" style="width:60px"/>
+                        <span class="stepper-unit">W/m²</span>
+                        <button type="button" id="btn-gains-plus" class="stepper-btn">+</button>
+                      </div>
+                    </div>
+
+                    <div class="zfield">
+                      <label class="zfield-label">Valeurs U d'enveloppe (laisser vide = auto)</label>
+                      <div class="ugrid">
+                        <label>Murs</label>
+                        <input type="number" id="f-u-walls"   class="zinput zinput-sm" placeholder="auto" min="0.1" max="5" step="0.05"/>
+                        <span class="uunit">W/m²K</span>
+                        <label>Toiture</label>
+                        <input type="number" id="f-u-roof"    class="zinput zinput-sm" placeholder="auto" min="0.1" max="4" step="0.05"/>
+                        <span class="uunit">W/m²K</span>
+                        <label>Plancher</label>
+                        <input type="number" id="f-u-floor"   class="zinput zinput-sm" placeholder="auto" min="0.1" max="4" step="0.05"/>
+                        <span class="uunit">W/m²K</span>
+                        <label>Vitrages</label>
+                        <input type="number" id="f-u-windows" class="zinput zinput-sm" placeholder="auto" min="0.5" max="7" step="0.1"/>
+                        <span class="uunit">W/m²K</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </details>
+              </div>
+
               <button id="btn-save-zone" class="primary-btn full-width">Enregistrer la zone</button>
             </div>
           </div>
@@ -316,8 +364,9 @@
 
         <!-- ─ Étape 2 : Résultats + Calibration ─ -->
         <div id="panel-step2" class="step-panel hidden">
-          <div class="panel-header">
+          <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <h2>Résultats & calibration</h2>
+            <button id="btn-toggle-map" title="Afficher/masquer la carte">🗺 Carte</button>
           </div>
           <div class="panel-body">
             <div id="dpe-section">

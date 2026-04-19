@@ -10,6 +10,7 @@ import {
   addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps,
   buildGeoJSON, getInactiveBuildingsGeoJSON, setMaxStep, getMaxStep,
   setAnalysis, setRenovation,
+  snapshotBuildings, restoreSnapshot, resetAllBuildings,
 } from './buildings.js'
 import { analyzeBuilding, analyzeRenovation, getToken, saveProject } from './api.js'
 import { showResults } from './results.js'
@@ -55,39 +56,57 @@ function _bootProjects() {
 }
 
 async function _openProject(project) {
+  // 1. Reset all buildings state and draw canvas
+  resetAllBuildings()
+  draw.deleteAll()
+  _lastAnalysis   = null
+  _lastRenovation = null
+
   _currentProjectId = project.id
   document.getElementById('project-name-label').textContent = project.name
 
-  // Load saved geojson into buildings state if present
-  if (project.geojson) {
-    _loadProjectGeoJSON(project.geojson)
+  // 2. Restore buildings snapshot (zones + geometry)
+  const geojson = project.geojson
+  if (geojson?._type === 'optibuilding_snapshot_v1') {
+    const zones = restoreSnapshot(geojson)
+    _restoreZonesToDraw(zones)
+  } else if (geojson?.features?.length) {
+    // Legacy: plain GeoJSON — create default building + zones
+    createBuilding('Bâtiment 1')
+    geojson.features.forEach(f => {
+      if (f.geometry) addZone({ id: f.id || crypto.randomUUID(), geometry: f.geometry })
+    })
+    _restoreZonesToDraw(getAllZones())
+  } else {
+    createBuilding('Bâtiment 1')
+  }
+
+  renderBuildingSelector()
+  renderZoneList()
+  _updateInactiveOverlay()
+  _updateAnalyseBtn()
+
+  // 3. Restore analysis / renovation results
+  if (project.analysis) {
+    _lastAnalysis   = project.analysis
+    _lastRenovation = project.renovation || null
+    const step = getMaxStep()
+    showResults(project.analysis, project.renovation, buildGeoJSON(),
+                getActiveBuilding()?.stationId, getActiveBuilding()?.calibration || {})
+    goToStep(Math.min(step, 2))
+  } else {
+    goToStep(1)
   }
 
   _showView('app')
-
-  // Show saved analysis/reno results if available
-  if (project.analysis) {
-    _lastAnalysis = project.analysis
-    showResults(project.analysis, project.renovation)
-    setMaxStep(3)
-    goToStep(2)
-  }
 }
 
-function _loadProjectGeoJSON(geojson) {
-  // For now, load first feature set into default building
-  // A full multi-building restore would require more state management
-  try {
-    const features = geojson?.features || []
-    if (!features.length) return
-    // Clear existing zones and repopulate
-    getAllZones().forEach(z => removeZone(z.id))
-    features.forEach(f => {
-      if (f.geometry) addZone(f.geometry, f.properties || {})
-    })
-  } catch (e) {
-    console.warn('Could not restore project GeoJSON:', e)
-  }
+function _restoreZonesToDraw(zones) {
+  zones.forEach(z => {
+    if (z.geometry) {
+      draw.add({ type: 'Feature', id: z.id, geometry: z.geometry, properties: {} })
+    }
+  })
 }
 
 // ── Auto-save project ─────────────────────────────────────────────────────────
@@ -99,7 +118,7 @@ export function triggerProjectSave(data = {}) {
   _saveTimer = setTimeout(async () => {
     try {
       await saveProject(_currentProjectId, {
-        geojson:    data.geojson    ?? buildGeoJSON(),
+        geojson:    snapshotBuildings(),   // full snapshot incl. zones + geometry
         analysis:   data.analysis   ?? _lastAnalysis   ?? undefined,
         renovation: data.renovation ?? _lastRenovation ?? undefined,
         station_id: getSelectedStationId() ?? undefined,
@@ -171,6 +190,11 @@ export function goToStep(n) {
   const rightPanel = document.getElementById('right-panel')
   rightPanel?.classList.toggle('wide', n > 1)
   if (n !== 1) rightPanel?.classList.remove('form-open')
+
+  // Analysis mode: hide map in steps 2/3
+  const app = document.getElementById('app')
+  app?.classList.toggle('analysis-mode', n > 1)
+  if (n === 1) app?.classList.remove('map-visible')
 }
 
 export function unlockStep(n) {
@@ -216,6 +240,10 @@ document.getElementById('btn-export-ppt')?.addEventListener('click', async () =>
     btn.disabled = false
     btn.textContent = '⬇ PPT'
   }
+})
+
+document.getElementById('btn-toggle-map')?.addEventListener('click', () => {
+  document.getElementById('app')?.classList.toggle('map-visible')
 })
 
 document.addEventListener('calibration:validated', () => unlockStep(3))
@@ -356,6 +384,7 @@ map.on('draw.create', ({ features }) => {
   features.forEach(feat => addZone(feat))
   renderZoneList()
   _updateAnalyseBtn()
+  triggerProjectSave()
   selectZone(features[features.length - 1].id)
   setTimeout(() => {
     draw.changeMode('simple_select', { featureIds: [] })
@@ -370,9 +399,11 @@ map.on('draw.delete', ({ features }) => {
   if (features.some(f => f.id === selectedId)) {
     selectedId = null
     document.getElementById('zone-form').classList.add('hidden')
+    document.getElementById('right-panel')?.classList.remove('form-open')
   }
   renderZoneList()
   _updateAnalyseBtn()
+  triggerProjectSave()
 })
 
 map.on('draw.selectionchange', ({ features }) => {
@@ -466,8 +497,10 @@ export function selectZone(id) {
   if (fFloors) fFloors.value = p.floors ?? Math.max(1, Math.round(p.height_m / 3))
 
   // Setpoints
-  const heatSp = p.heating_setpoint_c ?? 19.0
-  const coolSp = p.cooling_setpoint_c ?? 26.0
+  const heatSp  = p.heating_setpoint_c  ?? 19.0
+  const coolSp  = p.cooling_setpoint_c  ?? 26.0
+  const ventAch = p.ventilation_ach     ?? 0.5
+  const intGain = p.internal_gains_w_m2 ?? 5.0
   const hasCooling = p.has_cooling ?? false
   const fHeatSp = document.getElementById('f-heat-sp')
   if (fHeatSp) { fHeatSp.value = heatSp; document.getElementById('f-heat-sp-val').textContent = `${heatSp} °C` }
@@ -483,6 +516,20 @@ export function selectZone(id) {
   _setActive('[data-cooling]', 'cooling', p.cooling_system_type || 'split_ac')
   const fCoolSys = document.getElementById('f-cooling-system')
   if (fCoolSys) fCoolSys.value = p.cooling_system_type || 'split_ac'
+
+  // Advanced params
+  const fVent = document.getElementById('f-ventilation-ach')
+  if (fVent) fVent.value = ventAch
+  const fGains = document.getElementById('f-internal-gains')
+  if (fGains) fGains.value = intGain
+  const fUW = document.getElementById('f-u-walls')
+  if (fUW) fUW.value = p.u_walls_override ?? ''
+  const fUR = document.getElementById('f-u-roof')
+  if (fUR) fUR.value = p.u_roof_override ?? ''
+  const fUF = document.getElementById('f-u-floor')
+  if (fUF) fUF.value = p.u_floor_override ?? ''
+  const fUWin = document.getElementById('f-u-windows')
+  if (fUWin) fUWin.value = p.u_windows_override ?? ''
 
   // Struct checkboxes
   const fGround = document.getElementById('f-ground')
@@ -564,6 +611,26 @@ function _bindZoneFormEvents() {
     if (el) el.value = Math.min(20, parseInt(el.value) + 1)
   })
 
+  // Ventilation stepper
+  document.getElementById('btn-vent-minus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-ventilation-ach')
+    if (el) el.value = Math.max(0, (parseFloat(el.value) - 0.05).toFixed(2))
+  })
+  document.getElementById('btn-vent-plus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-ventilation-ach')
+    if (el) el.value = Math.min(3, (parseFloat(el.value) + 0.05).toFixed(2))
+  })
+
+  // Internal gains stepper
+  document.getElementById('btn-gains-minus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-internal-gains')
+    if (el) el.value = Math.max(0, (parseFloat(el.value) - 0.5).toFixed(1))
+  })
+  document.getElementById('btn-gains-plus')?.addEventListener('click', () => {
+    const el = document.getElementById('f-internal-gains')
+    if (el) el.value = Math.min(20, (parseFloat(el.value) + 0.5).toFixed(1))
+  })
+
   // Setpoint sliders & cooling toggle
   document.getElementById('f-heat-sp')?.addEventListener('input', e => {
     document.getElementById('f-heat-sp-val').textContent = `${e.target.value} °C`
@@ -611,6 +678,7 @@ function _bindZoneFormEvents() {
   // Save zone
   document.getElementById('btn-save-zone')?.addEventListener('click', () => {
     if (!selectedId) return
+    triggerProjectSave()
     updateZoneProps(selectedId, {
       label:              document.getElementById('f-label')?.value,
       height:             document.getElementById('f-height')?.value,
@@ -625,6 +693,12 @@ function _bindZoneFormEvents() {
       heating_setpoint_c: document.getElementById('f-heat-sp')?.value,
       cooling_setpoint_c: document.getElementById('f-cool-sp')?.value,
       cooling_system:     document.getElementById('f-cooling-system')?.value,
+      ventilation_ach:    document.getElementById('f-ventilation-ach')?.value,
+      internal_gains_w_m2: document.getElementById('f-internal-gains')?.value,
+      u_walls:            document.getElementById('f-u-walls')?.value,
+      u_roof:             document.getElementById('f-u-roof')?.value,
+      u_floor:            document.getElementById('f-u-floor')?.value,
+      u_windows:          document.getElementById('f-u-windows')?.value,
     })
     renderZoneList()
     const zone = getZone(selectedId)

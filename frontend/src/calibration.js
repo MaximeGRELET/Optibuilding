@@ -78,9 +78,11 @@ export function mountCalibrationPanel(container, geojson, stationId, onResult, o
   // Check if any zone has cooling enabled
   _hasCooling = (geojson?.features || []).some(f => f.properties?.has_cooling === true)
 
+  // Seed initial slider values from zone properties (step 1 form)
+  const seedDefaults = _seedFromGeojson(geojson)
   PARAMS.forEach(p => {
     _enabled[p.key] = false
-    _values[p.key] = DEFAULTS[p.key] ?? (p.min + p.max) / 2
+    _values[p.key] = seedDefaults[p.key] ?? DEFAULTS[p.key] ?? (p.min + p.max) / 2
   })
   _realMode = 'none'
   _annualKwh = ''
@@ -95,6 +97,41 @@ export function mountCalibrationPanel(container, geojson, stationId, onResult, o
 
   // Run baseline simulation immediately (no overrides) to show initial chart
   _runSimulate()
+}
+
+// ── Seed defaults from zone GeoJSON ──────────────────────────────────────────
+
+function _seedFromGeojson(geojson) {
+  const f = geojson?.features?.[0]
+  if (!f) return {}
+  const p = f.properties || {}
+  const env = p.envelope || {}
+
+  // Compute effective U-value from layers or override
+  const uVal = (part) => {
+    if (!part) return null
+    if (part.u_override != null) return part.u_override
+    // Simple sum of R-values → U (very rough, calibration will refine)
+    const layers = part.layers || []
+    if (!layers.length) return null
+    const R = layers.reduce((acc, l) => {
+      const conductivity = { brick_hollow: 0.6, concrete_dense: 1.8, mineral_wool: 0.04, eps_insulation: 0.036 }[l.material_id] || 0.5
+      return acc + (l.thickness_m || 0) / conductivity
+    }, 0.17) // surface resistance
+    return R > 0 ? Math.round((1 / R) * 100) / 100 : null
+  }
+
+  return {
+    t_heating:           p.heating_setpoint_c    ?? 19.0,
+    t_cooling:           p.cooling_setpoint_c    ?? 26.0,
+    infiltration_ach:    p.infiltration_ach       ?? 0.5,
+    ventilation_ach:     p.ventilation_ach        ?? 0.5,
+    internal_gains_w_m2: p.internal_gains_w_m2   ?? 5.0,
+    u_walls:   uVal(env.walls)       ?? DEFAULTS.u_walls,
+    u_roof:    uVal(env.roof)        ?? DEFAULTS.u_roof,
+    u_floor:   uVal(env.ground_floor) ?? DEFAULTS.u_floor,
+    u_windows: env.windows?.u_value_w_m2k ?? DEFAULTS.u_windows,
+  }
 }
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
