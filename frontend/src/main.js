@@ -154,24 +154,6 @@ const MAP_STYLES = {
     },
     layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }],
   },
-  ign: {
-    version: 8,
-    sources: {
-      ign: {
-        type: 'raster',
-        tiles: [
-          'https://wxs.ign.fr/cartes/geoportail/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0'
-          + '&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image%2Fpng'
-          + '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'
-          + '&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
-        ],
-        tileSize: 256,
-        attribution: '© <a href="https://www.geoportail.gouv.fr">IGN-France</a>',
-        maxzoom: 18,
-      },
-    },
-    layers: [{ id: 'ign-tiles', type: 'raster', source: 'ign' }],
-  },
 }
 
 // ── Map ────────────────────────────────────────────────────────────────────────
