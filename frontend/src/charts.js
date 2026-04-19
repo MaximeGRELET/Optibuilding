@@ -18,9 +18,9 @@ Chart.register(
   Filler, Tooltip, Legend,
 )
 
-// Shared dark theme defaults
-Chart.defaults.color = '#7a7f9a'
-Chart.defaults.borderColor = '#2d3147'
+// Shared light theme defaults
+Chart.defaults.color = '#5A7292'
+Chart.defaults.borderColor = '#C8D8EE'
 Chart.defaults.font.family = 'Inter, system-ui, sans-serif'
 Chart.defaults.font.size = 10
 
@@ -235,16 +235,16 @@ function _lineOptions(unit) {
 
 function _xScale() {
   return {
-    grid: { color: '#2d3147' },
-    ticks: { color: '#7a7f9a', maxTicksLimit: 8 },
+    grid: { color: '#C8D8EE' },
+    ticks: { color: '#5A7292', maxTicksLimit: 8 },
   }
 }
 
 function _yScale(label) {
   return {
-    grid: { color: '#2d3147' },
-    ticks: { color: '#7a7f9a' },
-    title: { display: true, text: label, color: '#7a7f9a', font: { size: 9 } },
+    grid: { color: '#C8D8EE' },
+    ticks: { color: '#5A7292' },
+    title: { display: true, text: label, color: '#5A7292', font: { size: 9 } },
   }
 }
 

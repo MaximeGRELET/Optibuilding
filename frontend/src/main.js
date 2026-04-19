@@ -141,7 +141,7 @@ if (getToken()) {
 
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
   center: [4.854, 45.756],
   zoom: 16,
 })
@@ -461,6 +461,18 @@ export function selectZone(id) {
   document.querySelectorAll('.zone-item').forEach(el =>
     el.classList.toggle('selected', el.dataset.id === id)
   )
+
+  // Auto-zoom to the selected zone
+  if (zone.geometry?.coordinates) {
+    const coords = zone.geometry.type === 'Polygon' ? zone.geometry.coordinates[0] : []
+    if (coords.length) {
+      const bounds = coords.reduce(
+        (b, c) => b.extend(c),
+        new maplibregl.LngLatBounds(coords[0], coords[0])
+      )
+      map.fitBounds(bounds, { padding: 80, maxZoom: 19, duration: 600 })
+    }
+  }
 
   const form = document.getElementById('zone-form')
   form?.classList.remove('hidden')
