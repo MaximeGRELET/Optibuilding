@@ -15,14 +15,46 @@ let _showAll = false
 
 // ── Montage ───────────────────────────────────────────────────────────────────
 
-export function mountComboAnalysis(container, ctx) {
-  _pool    = []
-  _results = []
-  _showAll = false
+export function mountComboAnalysis(container, ctx, savedState = null) {
+  if (savedState) {
+    _pool = (savedState.pool || [])
+      .map(p => ({ uid: p.uid, action: ACTIONS_CATALOG.find(a => a.id === p.action_id), params: p.params }))
+      .filter(p => p.action)
+    _results = (savedState.results || []).map(s => ({
+      ...s,
+      combo: (s.combo || [])
+        .map(c => ({ uid: c.uid, action: ACTIONS_CATALOG.find(a => a.id === c.action_id), params: c.params }))
+        .filter(c => c.action),
+    }))
+    _showAll = false
+  } else {
+    _pool    = []
+    _results = []
+    _showAll = false
+  }
   container.innerHTML = _renderShell()
   _bindEvents(container, ctx)
   _renderPool(container)
   _updateInfo(container)
+  if (_results.length) _renderResults(container)
+}
+
+export function getComboState() {
+  return {
+    pool: _pool.map(p => ({ uid: p.uid, action_id: p.action.id, params: { ...p.params } })),
+    results: _results.map(s => ({
+      name:       s.name,
+      deltaKwh:   s.deltaKwh,
+      investKeur: s.investKeur,
+      efficiency: s.efficiency,
+      result:     s.result,
+      combo: s.combo.map(item => ({
+        uid:       item.uid,
+        action_id: item.action.id,
+        params:    { ...item.params },
+      })),
+    })),
+  }
 }
 
 function _renderShell() {
@@ -257,8 +289,8 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
       }))
       const result = await simulateActions(geojson, actions, method, stationId, calibration)
 
-      const deltaKwh   = (result.baseline?.heating_need_kwh ?? 0) - (result.after?.heating_need_kwh ?? 0)
-      const investKeur = (result.investment_center_eur ?? ((result.after?.cost_min_eur ?? 0) + (result.after?.cost_max_eur ?? 0)) / 2) / 1000
+      const deltaKwh   = (result.heating_need_before_kwh ?? 0) - (result.heating_need_after_kwh ?? 0)
+      const investKeur = (result.investment_center_eur ?? 0) / 1000
       const efficiency = investKeur > 0 ? deltaKwh / investKeur : 0
 
       scenarioResults.push({ name: _comboName(combo), combo, result, deltaKwh, investKeur, efficiency })
@@ -273,6 +305,8 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
   scenarioResults.sort((a, b) => b.efficiency - a.efficiency)
   _results = scenarioResults
   _showAll = false
+
+  document.dispatchEvent(new CustomEvent('combo:updated'))
 
   setTimeout(() => {
     progressEl.classList.add('hidden')
@@ -335,8 +369,8 @@ const _DPE_COLORS = {
 
 function _renderRow(s, rank) {
   const medal     = ['🥇', '🥈', '🥉'][rank] ?? `${rank + 1}.`
-  const dpeAfter  = s.result.after_dpe  ?? s.result.after?.dpe_class  ?? '?'
-  const dpeBefore = s.result.baseline_dpe ?? s.result.baseline?.dpe_class ?? '?'
+  const dpeAfter  = s.result.dpe_after  ?? '?'
+  const dpeBefore = s.result.dpe_before ?? '?'
   const dpeColor  = _DPE_COLORS[dpeAfter] ?? '#888'
   const dpeText   = ['A','B','C'].includes(dpeAfter) ? '#333' : '#fff'
 

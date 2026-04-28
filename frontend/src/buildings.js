@@ -39,6 +39,7 @@ export function createBuilding(name) {
     calibration: {},
     renovation: null,
     savedScenarios: [],
+    comboState: null,
     maxReachedStep: 1,
   }
   _buildings.set(id, building)
@@ -175,6 +176,16 @@ export function setRenovation(renovation) {
   if (b) b.renovation = renovation
 }
 
+export function setSavedScenarios(scenarios) {
+  const b = getActiveBuilding()
+  if (b) b.savedScenarios = scenarios ? [...scenarios] : []
+}
+
+export function setComboState(state) {
+  const b = getActiveBuilding()
+  if (b) b.comboState = state ?? null
+}
+
 export function addSavedScenario(entry) {
   getActiveBuilding()?.savedScenarios.push(entry)
 }
@@ -200,14 +211,16 @@ export function snapshotBuildings() {
   const buildings = []
   for (const b of _buildings.values()) {
     buildings.push({
-      id:           b.id,
-      name:         b.name,
-      color:        b.color,
-      zonePalette:  b.zonePalette,
-      colorIndex:   b.colorIndex,
-      stationId:    b.stationId,
+      id:             b.id,
+      name:           b.name,
+      color:          b.color,
+      zonePalette:    b.zonePalette,
+      colorIndex:     b.colorIndex,
+      stationId:      b.stationId,
       maxReachedStep: b.maxReachedStep,
-      calibration:  b.calibration,
+      calibration:    b.calibration,
+      savedScenarios: b.savedScenarios,
+      comboState:     b.comboState,
       zones: Array.from(b.zones.values()).map(z => ({ ...z })),
     })
   }
@@ -235,9 +248,10 @@ export function restoreSnapshot(snapshot) {
       colorIndex:    data.colorIndex  || 0,
       stationId:     data.stationId   || null,
       maxReachedStep: data.maxReachedStep || 1,
-      calibration:   data.calibration || {},
-      renovation:    null,
-      savedScenarios: [],
+      calibration:    data.calibration    || {},
+      renovation:     null,
+      savedScenarios: data.savedScenarios || [],
+      comboState:     data.comboState     || null,
       zones: new Map(),
     }
     for (const z of (data.zones || [])) {

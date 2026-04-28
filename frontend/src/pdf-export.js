@@ -23,7 +23,7 @@ function _buildReportHTML(projectName, a, reno, savedScenarios, comboResults) {
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Étude OptiBuilding — ${_esc(projectName)}</title>
+<title>Étude Jean Rénov — ${_esc(projectName)}</title>
 <style>
   /* ── Reset ── */
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -189,9 +189,9 @@ function _coverPage(projectName, a, today) {
   return `<div class="cover">
   <div class="accent-bar"></div>
   <div class="cover-header">
-    <div class="cover-logo">OB</div>
+    <img class="cover-logo-img" src="https://jean-renov.app/jean-renov-logo.png" onerror="this.style.display='none'" style="width:54px;height:54px;border-radius:10px;object-fit:cover" alt="JR" />
     <div>
-      <div class="cover-brand">OptiBuilding</div>
+      <div class="cover-brand">Jean Rénov</div>
       <div class="cover-brand-sub">by Efficacity</div>
     </div>
   </div>
@@ -232,7 +232,7 @@ function _coverPage(projectName, a, today) {
     </div>
   </div>
   <div class="cover-footer">
-    <span>OptiBuilding — Simulation physique ISO 13790</span>
+    <span>Jean Rénov — Simulation physique ISO 13790</span>
     <span>Rapport généré le ${today}</span>
     <span>Efficacity © ${new Date().getFullYear()}</span>
   </div>
@@ -551,7 +551,7 @@ function _comparisonSection(scenarios) {
     </tbody>
   </table>
   <div class="report-footer">
-    <span>OptiBuilding — Outil de simulation énergétique — Efficacity</span>
+    <span>Jean Rénov — Outil de simulation énergétique — Efficacity</span>
     <span>Rapport généré le ${new Date().toLocaleDateString('fr-FR')}</span>
   </div>
 </div>`
@@ -700,7 +700,7 @@ function _comboSection(results) {
     ${total > 5 ? `<p style="font-size:8px;color:#7A8499;margin-top:6px;font-style:italic">Affichage des ${total} scénarios simulés. Les 3 premiers sont mis en évidence.</p>` : ''}
 
     <div class="report-footer">
-      <span>OptiBuilding — Analyse combinatoire</span>
+      <span>Jean Rénov — Analyse combinatoire</span>
       <span>Efficacité = kWh de chauffage économisés / k€ investis (coût médian)</span>
     </div>
   </div>`

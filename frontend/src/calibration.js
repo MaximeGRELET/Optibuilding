@@ -68,7 +68,7 @@ let _paramsInitialized = false  // sliders initialized from effective_params onc
  * @param {(result: object) => void} onResult  — called after each simulation
  * @param {() => void} onValidate              — called when user clicks "Valider"
  */
-export function mountCalibrationPanel(container, geojson, stationId, onResult, onValidate) {
+export function mountCalibrationPanel(container, geojson, stationId, onResult, onValidate, savedCalibration = null) {
   _geojson = geojson
   _stationId = stationId
   _onResultCallback = onResult
@@ -90,12 +90,26 @@ export function mountCalibrationPanel(container, geojson, stationId, onResult, o
   _realCoolMode = 'none'
   _annualCoolKwh = ''
   _monthlyCoolKwh = new Array(12).fill('')
-  _paramsInitialized = false
+
+  // Pre-fill from saved calibration overrides if available
+  const savedOverrides = savedCalibration?.['*'] || {}
+  const hasSaved = Object.keys(savedOverrides).length > 0
+  if (hasSaved) {
+    for (const [key, val] of Object.entries(savedOverrides)) {
+      if (key in _values) {
+        _values[key] = val
+        _enabled[key] = true
+      }
+    }
+    _paramsInitialized = true   // skip auto-init so saved values are not overwritten
+  } else {
+    _paramsInitialized = false
+  }
 
   container.innerHTML = _buildHTML()
   _bindEvents(container)
 
-  // Run baseline simulation immediately (no overrides) to show initial chart
+  // Run simulation immediately to show initial chart
   _runSimulate()
 }
 

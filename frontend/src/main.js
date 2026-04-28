@@ -9,18 +9,18 @@ import {
   getAllBuildings,
   addZone, getZone, removeZone, getAllZones, hasZones, updateZoneProps,
   buildGeoJSON, getInactiveBuildingsGeoJSON, setMaxStep, getMaxStep,
-  setAnalysis, setRenovation,
+  setAnalysis, setRenovation, setSavedScenarios, setComboState,
   snapshotBuildings, restoreSnapshot, resetAllBuildings,
 } from './buildings.js'
 import { analyzeBuilding, analyzeRenovation, getToken, saveProject } from './api.js'
-import { showResults } from './results.js'
+import { showResults, restoreStep3 } from './results.js'
 import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
-import { getSavedScenarios } from './scenario-compare.js'
+import { getSavedScenarios, restoreSavedScenarios, resetSavedScenarios } from './scenario-compare.js'
 import { mountAuthPage } from './auth.js'
 import { mountProjectsPage } from './projects.js'
 import { exportStudyPDF } from './pdf-export.js'
 import { exportStudyPPT } from './ppt-export.js'
-import { getComboResults } from './combo-analysis.js'
+import { getComboResults, getComboState } from './combo-analysis.js'
 
 // ── View router ────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,7 @@ function _bootProjects() {
 async function _openProject(project) {
   // 1. Reset all buildings state and draw canvas
   resetAllBuildings()
+  resetSavedScenarios()
   draw.deleteAll()
   _lastAnalysis   = null
   _lastRenovation = null
@@ -94,7 +95,14 @@ async function _openProject(project) {
     const step = getMaxStep()
     showResults(project.analysis, project.renovation, buildGeoJSON(),
                 getActiveBuilding()?.stationId, getActiveBuilding()?.calibration || {})
-    goToStep(Math.min(step, 2))
+    if (step >= 3 && project.renovation) {
+      unlockStep(3)
+      restoreStep3(project.analysis, project.renovation)
+      restoreSavedScenarios(getActiveBuilding()?.savedScenarios || [])
+      goToStep(3)
+    } else {
+      goToStep(Math.min(step, 2))
+    }
   } else {
     goToStep(1)
   }
@@ -118,8 +126,10 @@ export function triggerProjectSave(data = {}) {
   clearTimeout(_saveTimer)
   _saveTimer = setTimeout(async () => {
     try {
+      setSavedScenarios(getSavedScenarios())
+      setComboState(getComboState())
       await saveProject(_currentProjectId, {
-        geojson:    snapshotBuildings(),   // full snapshot incl. zones + geometry
+        geojson:    snapshotBuildings(),   // full snapshot incl. zones + geometry + calibration + savedScenarios
         analysis:   data.analysis   ?? _lastAnalysis   ?? undefined,
         renovation: data.renovation ?? _lastRenovation ?? undefined,
         station_id: getSelectedStationId() ?? undefined,
@@ -296,6 +306,7 @@ document.addEventListener('renovation:updated', (e) => {
   _lastRenovation = e.detail
   triggerProjectSave({ renovation: e.detail })
 })
+document.addEventListener('combo:updated', () => triggerProjectSave())
 
 // ── Method toggle ──────────────────────────────────────────────────────────────
 
@@ -401,7 +412,12 @@ function _switchToBuilding(id) {
   const stored = getActiveBuilding()
   if (stored?.analysis) {
     unlockStep(stored.maxReachedStep)
+    resetSavedScenarios()
     showResults(stored.analysis, stored.renovation, buildGeoJSON(), stored.stationId, stored.calibration)
+    if (stored.maxReachedStep >= 3 && stored.renovation) {
+      restoreStep3(stored.analysis, stored.renovation)
+      restoreSavedScenarios(stored.savedScenarios || [])
+    }
     goToStep(stored.maxReachedStep)
   }
 }

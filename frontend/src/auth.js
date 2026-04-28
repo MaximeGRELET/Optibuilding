@@ -22,8 +22,8 @@ function _render(container, mode) {
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-logo">
-          <span class="auth-logo-icon">🏗️</span>
-          <span class="auth-logo-text">OptiBuilding</span>
+          <img class="auth-logo-img" src="/jean-renov-logo.png" alt="Jean Rénov" />
+          <span class="auth-logo-text">Jean Rénov</span>
         </div>
         <h2 class="auth-title">${isLogin ? 'Connexion' : 'Créer un compte'}</h2>
 
