@@ -43,11 +43,14 @@ export function getComboState() {
   return {
     pool: _pool.map(p => ({ uid: p.uid, action_id: p.action.id, params: { ...p.params } })),
     results: _results.map(s => ({
-      name:       s.name,
-      deltaKwh:   s.deltaKwh,
-      investKeur: s.investKeur,
-      efficiency: s.efficiency,
-      result:     s.result,
+      name:         s.name,
+      deltaKwh:     s.deltaKwh,
+      deltaHeatPct: s.deltaHeatPct,
+      deltaCoolPct: s.deltaCoolPct,
+      deltaEpPct:   s.deltaEpPct,
+      investKeur:   s.investKeur,
+      efficiency:   s.efficiency,
+      result:       s.result,
       combo: s.combo.map(item => ({
         uid:       item.uid,
         action_id: item.action.id,
@@ -289,11 +292,20 @@ async function _runSimulation(container, { getGeoJSON, getStationId, getCalibrat
       }))
       const result = await simulateActions(geojson, actions, method, stationId, calibration)
 
-      const deltaKwh   = (result.heating_need_before_kwh ?? 0) - (result.heating_need_after_kwh ?? 0)
-      const investKeur = (result.investment_center_eur ?? 0) / 1000
-      const efficiency = investKeur > 0 ? deltaKwh / investKeur : 0
+      const heatBefore   = result.heating_need_before_kwh        ?? 0
+      const heatAfter    = result.heating_need_after_kwh         ?? 0
+      const coolBefore   = result.cooling_need_before_kwh        ?? 0
+      const coolAfter    = result.cooling_need_after_kwh         ?? 0
+      const epBefore     = result.primary_energy_before_kwh_m2   ?? 0
+      const epAfter      = result.primary_energy_after_kwh_m2    ?? 0
+      const deltaKwh     = heatBefore - heatAfter
+      const investKeur   = (result.investment_center_eur ?? 0) / 1000
+      const efficiency   = investKeur > 0 ? deltaKwh / investKeur : 0
+      const deltaHeatPct = heatBefore > 0 ? (heatBefore - heatAfter) / heatBefore * 100 : 0
+      const deltaCoolPct = coolBefore > 0 ? (coolBefore - coolAfter) / coolBefore * 100 : 0
+      const deltaEpPct   = epBefore   > 0 ? (epBefore   - epAfter)   / epBefore   * 100 : 0
 
-      scenarioResults.push({ name: _comboName(combo), combo, result, deltaKwh, investKeur, efficiency })
+      scenarioResults.push({ name: _comboName(combo), combo, result, deltaKwh, investKeur, efficiency, deltaHeatPct, deltaCoolPct, deltaEpPct })
     } catch (err) {
       console.warn(`Combo ${i + 1} échoué :`, err)
     }
@@ -347,9 +359,10 @@ function _renderResults(container) {
           <tr>
             <th></th>
             <th>Scénario & actions détaillées</th>
-            <th class="crt-r">Gain chauffage</th>
+            <th class="crt-r">▼ Chauf.</th>
+            <th class="crt-r">▼ Froid</th>
+            <th class="crt-r">▼ Énergie prim.</th>
             <th class="crt-r">Investissement</th>
-            <th class="crt-r">Efficacité</th>
             <th class="crt-r">DPE</th>
           </tr>
         </thead>
@@ -367,6 +380,13 @@ const _DPE_COLORS = {
   D: '#ffbf00', E: '#ff9f00', F: '#ff6200', G: '#e02020',
 }
 
+function _pctCell(pct, hasBefore) {
+  if (!hasBefore) return '<span style="color:#A0AEC0;font-size:0.85em">n/a</span>'
+  const cls  = pct >= 15 ? 'crt-gain--pos' : pct < 0 ? 'crt-gain--neg' : ''
+  const sign = pct > 0 ? '−' : pct < 0 ? '+' : ''
+  return `<span class="${cls}" style="font-weight:700">${sign}${Math.round(Math.abs(pct))} %</span>`
+}
+
 function _renderRow(s, rank) {
   const medal     = ['🥇', '🥈', '🥉'][rank] ?? `${rank + 1}.`
   const dpeAfter  = s.result.dpe_after  ?? '?'
@@ -374,7 +394,16 @@ function _renderRow(s, rank) {
   const dpeColor  = _DPE_COLORS[dpeAfter] ?? '#888'
   const dpeText   = ['A','B','C'].includes(dpeAfter) ? '#333' : '#fff'
 
-  // Detail pills: action label + key param values
+  const heatBefore = s.result?.heating_need_before_kwh      ?? 0
+  const heatAfter  = s.result?.heating_need_after_kwh       ?? 0
+  const coolBefore = s.result?.cooling_need_before_kwh      ?? 0
+  const coolAfter  = s.result?.cooling_need_after_kwh       ?? 0
+  const epBefore   = s.result?.primary_energy_before_kwh_m2 ?? 0
+  const epAfter    = s.result?.primary_energy_after_kwh_m2  ?? 0
+  const heatPct = s.deltaHeatPct ?? (heatBefore > 0 ? (heatBefore - heatAfter) / heatBefore * 100 : 0)
+  const coolPct = s.deltaCoolPct ?? (coolBefore > 0 ? (coolBefore - coolAfter) / coolBefore * 100 : 0)
+  const epPct   = s.deltaEpPct   ?? (epBefore   > 0 ? (epBefore   - epAfter)   / epBefore   * 100 : 0)
+
   const pills = s.combo.map(item => {
     const keyParams = item.action.params
       .filter(p => ['range', 'select'].includes(p.type))
@@ -388,10 +417,6 @@ function _renderRow(s, rank) {
     return `<span class="crt-action-pill">${item.action.icon} ${item.action.label}${keyParams ? ` — ${keyParams}` : ''}</span>`
   }).join('')
 
-  const deltaStr = s.deltaKwh >= 0
-    ? `−${Math.round(s.deltaKwh).toLocaleString('fr')} kWh`
-    : `+${Math.abs(Math.round(s.deltaKwh)).toLocaleString('fr')} kWh`
-
   return `
     <tr class="crt-row${rank < 3 ? ' crt-row--podium' : ''}">
       <td class="crt-rank">${medal}</td>
@@ -399,9 +424,10 @@ function _renderRow(s, rank) {
         <div class="crt-actions-detail">${pills}</div>
         <div class="crt-dpe-arrow">${dpeBefore} → ${dpeAfter}</div>
       </td>
-      <td class="crt-r"><span class="${s.deltaKwh >= 0 ? 'crt-gain--pos' : 'crt-gain--neg'}">${deltaStr}</span></td>
+      <td class="crt-r">${_pctCell(heatPct, heatBefore > 0)}</td>
+      <td class="crt-r">${_pctCell(coolPct, coolBefore > 0)}</td>
+      <td class="crt-r">${_pctCell(epPct,   epBefore   > 0)}</td>
       <td class="crt-r">${s.investKeur > 0 ? s.investKeur.toFixed(0) + ' k€' : '—'}</td>
-      <td class="crt-r crt-efficiency">${s.efficiency > 0 ? Math.round(s.efficiency).toLocaleString('fr') + ' kWh/k€' : '—'}</td>
       <td class="crt-r"><span class="crt-dpe-badge" style="background:${dpeColor};color:${dpeText}">${dpeAfter}</span></td>
     </tr>`
 }
