@@ -39,7 +39,7 @@ const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','N
 export async function exportStudyPPT(projectName, analysisResult, renovationResult, savedScenarios = []) {
   const prs  = new PptxGenJS()
   prs.layout = 'LAYOUT_WIDE'   // 13.33 × 7.5 in
-  prs.author = 'OptiBuilding — Efficacity'
+  prs.author = 'Jean Rénov — Efficacity'
   prs.company = 'Efficacity'
   prs.subject = `Étude énergétique — ${projectName}`
   prs.title   = projectName
@@ -69,7 +69,7 @@ export async function exportStudyPPT(projectName, analysisResult, renovationResu
   // ── Slide de conclusion ───────────────────────────────────────────────────
   _slideEnd(prs, projectName)
 
-  await prs.writeFile({ fileName: `OptiBuilding_${_slug(projectName)}_${_dateStr()}.pptx` })
+  await prs.writeFile({ fileName: `JeanRenov_${_slug(projectName)}_${_dateStr()}.pptx` })
 }
 
 // ── Slide helpers ─────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function _slideCover(prs, projectName, a) {
     shape: prs.ShapeType.roundRect,
     rectRadius: 0.12,
   })
-  slide.addText('OptiBuilding', {
+  slide.addText('Jean Rénov', {
     x: 1.55, y: 0.52, w: 2.4, h: 0.4,
     fontSize: 13, bold: true, color: C.white,
   })
@@ -536,7 +536,7 @@ function _slideEnd(prs, projectName) {
     rectRadius: 0.24,
   })
 
-  slide.addText('OptiBuilding — by Efficacity', {
+  slide.addText('Jean Rénov — by Efficacity', {
     x: 2, y: 3.65, w: 9.33, h: 0.55,
     fontSize: 16, bold: true, color: C.white, align: 'center',
   })

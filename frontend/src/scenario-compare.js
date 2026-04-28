@@ -26,6 +26,7 @@ const DPE_COLORS = {
 /** @type {{ id: number, name: string, result: object, actions: object[], baselineMonthly: number[]|null }[]} */
 const _scenarios = []
 let _nextId = 1
+let _container       = null
 let _efficiencyChart = null
 let _monthlyChart    = null
 let _coolingChart    = null
@@ -33,6 +34,7 @@ let _coolingChart    = null
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function mountComparePanel(container) {
+  _container = container
   _render(container)
 }
 
@@ -54,7 +56,23 @@ export function hasSavedScenarios() {
 }
 
 export function getSavedScenarios() {
-  return _scenarios.map(s => ({ name: s.name, result: s.result, actions: s.actions }))
+  return _scenarios.map(s => ({ name: s.name, result: s.result, actions: s.actions, baselineMonthly: s.baselineMonthly }))
+}
+
+export function restoreSavedScenarios(saved) {
+  _scenarios.length = 0
+  _nextId = 1
+  for (const s of (saved || [])) {
+    _scenarios.push({ id: _nextId++, name: s.name, result: s.result, actions: s.actions, baselineMonthly: s.baselineMonthly || null })
+  }
+  _destroyCharts()
+  if (_container) _render(_container)
+}
+
+export function resetSavedScenarios() {
+  _scenarios.length = 0
+  _nextId = 1
+  _destroyCharts()
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────

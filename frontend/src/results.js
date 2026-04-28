@@ -2,9 +2,11 @@
 
 import { mountActionsPanel, showCustomResult, showCustomResultLoading, hideCustomResult } from './actions-panel.js'
 import { simulateActions, analyzeRenovation } from './api.js'
+import { mountComboAnalysis } from './combo-analysis.js'
 import { renderHourlyCharts, renderMonthlyChart, hideCharts } from './charts.js'
 import { mountCalibrationPanel } from './calibration.js'
 import { mountComparePanel, addSavedScenario } from './scenario-compare.js'
+import { setCalibration, getActiveBuilding } from './buildings.js'
 import {
   Chart, LineController, LineElement, BarController, BarElement,
   CategoryScale, LinearScale, PointElement, Tooltip, Legend,
@@ -69,6 +71,21 @@ export function clearResults() {
   if (_renoCoolingChart) { _renoCoolingChart.destroy(); _renoCoolingChart = null }
 }
 
+export function restoreStep3(analysis, renovation, comboState = null) {
+  _baselineMonthly = _extractMonthly(analysis)
+  document.getElementById('actions-section')?.classList.remove('hidden')
+  document.getElementById('renovation-section')?.classList.remove('hidden')
+  document.getElementById('compare-section')?.classList.remove('hidden')
+  document.getElementById('combo-section')?.classList.remove('hidden')
+  _renderActionsPanel()
+  _renderComparePanel()
+  _renderComboPanel(comboState ?? getActiveBuilding()?.comboState ?? null)
+  if (renovation) {
+    _pendingRenovation = renovation
+    _renderRenovation(renovation)
+  }
+}
+
 // ── Calibration panel ─────────────────────────────────────────────────────────
 
 function _renderCalibrationPanel(geojson) {
@@ -85,6 +102,7 @@ function _renderCalibrationPanel(geojson) {
     async (calibratedResult, calibration) => {
       if (calibratedResult) { _renderDPE(calibratedResult); _renderKPIs(calibratedResult) }
       _currentCalibration = calibration || {}
+      setCalibration(_currentCalibration)
 
       // Store baseline monthly heating for comparison graph
       _baselineMonthly = _extractMonthly(calibratedResult)
@@ -92,8 +110,10 @@ function _renderCalibrationPanel(geojson) {
       document.getElementById('actions-section')?.classList.remove('hidden')
       document.getElementById('renovation-section')?.classList.remove('hidden')
       document.getElementById('compare-section')?.classList.remove('hidden')
+      document.getElementById('combo-section')?.classList.remove('hidden')
       _renderActionsPanel()
       _renderComparePanel()
+      _renderComboPanel()
       document.dispatchEvent(new CustomEvent('calibration:validated'))
 
       try {
@@ -108,6 +128,7 @@ function _renderCalibrationPanel(geojson) {
 
       document.getElementById('renovation-section')?.scrollIntoView({ behavior: 'smooth' })
     },
+    _currentCalibration,
   )
 }
 
@@ -141,6 +162,17 @@ function _renderComparePanel() {
   const mount = document.getElementById('compare-panel-mount')
   if (!mount) return
   mountComparePanel(mount)
+}
+
+function _renderComboPanel(savedState = null) {
+  const mount = document.getElementById('combo-panel-mount')
+  if (!mount) return
+  mountComboAnalysis(mount, {
+    getGeoJSON:     () => _currentGeojson,
+    getStationId:   () => _currentStationId,
+    getCalibration: () => _currentCalibration,
+    getMethod:      () => 'monthly',
+  }, savedState)
 }
 
 // ── DPE ───────────────────────────────────────────────────────────────────────

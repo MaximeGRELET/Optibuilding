@@ -19,8 +19,8 @@ async function _render(container) {
     <div class="projects-page">
       <header class="projects-header">
         <div class="projects-header-left">
-          <span class="projects-logo-icon">🏗️</span>
-          <span class="projects-logo-text">OptiBuilding</span>
+          <img class="projects-logo-img" src="/jean-renov-logo.png" alt="Jean Rénov" />
+          <span class="projects-logo-text">Jean Rénov</span>
         </div>
         <div class="projects-header-right">
           <span class="projects-user-email">${_escHtml(email)}</span>
