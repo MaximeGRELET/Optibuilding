@@ -18,7 +18,7 @@ import { mountWeatherPicker, getSelectedStationId } from './weather-picker.js'
 import { getSavedScenarios, restoreSavedScenarios, resetSavedScenarios } from './scenario-compare.js'
 import { mountAuthPage } from './auth.js'
 import { mountProjectsPage } from './projects.js'
-import { exportStudyPDF } from './pdf-export.js'
+import { exportStudyPDF, exportPatrimoinePDF } from './pdf-export.js'
 import { exportStudyPPT } from './ppt-export.js'
 import { getComboResults, getComboState } from './combo-analysis.js'
 
@@ -279,6 +279,11 @@ document.getElementById('btn-back-projects')?.addEventListener('click', () => {
 document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
   const name = document.getElementById('project-name-label')?.textContent || 'Étude'
   exportStudyPDF(name, _lastAnalysis, _lastRenovation, getSavedScenarios(), getComboResults())
+})
+
+document.getElementById('btn-export-pdf-patrimoine')?.addEventListener('click', () => {
+  const name = document.getElementById('project-name-label')?.textContent || 'Étude'
+  exportPatrimoinePDF(name, getAllBuildings())
 })
 
 document.getElementById('btn-export-ppt')?.addEventListener('click', async () => {

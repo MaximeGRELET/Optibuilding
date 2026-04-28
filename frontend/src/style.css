@@ -1673,6 +1673,8 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 .project-bar-btn:hover { border-color: var(--accent); color: var(--accent); }
 .project-bar-btn--pdf { color: var(--text); }
 .project-bar-btn--pdf:hover { background: rgba(61,170,53,0.08); border-color: var(--green); color: var(--green); }
+.project-bar-btn--pdf-patrimoine { color: var(--text); }
+.project-bar-btn--pdf-patrimoine:hover { background: rgba(100,130,255,0.08); border-color: #6482ff; color: #6482ff; }
 .project-bar-btn--ppt { color: var(--text); }
 .project-bar-btn--ppt:hover { background: rgba(179,0,0,0.08); border-color: var(--danger); color: var(--danger); }
 .project-bar-btn--ppt:disabled { opacity: .5; cursor: not-allowed; }
